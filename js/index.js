@@ -41,7 +41,7 @@ var S = {
       if (i !== -1) {
         S.UI.simulate(decodeURI(action).substring(i + 3));
       } else {
-        S.UI.simulate('|#countdown 3||祝|辣椒素|生日快乐！|岁岁春无事|相逢总玉颜|#icon heart|#icon heart-empty|#icon heart');
+        S.UI.simulate('|#countdown 3||祝|辣椒素|生日快乐！|祝君|岁岁|春无事|相逢|总玉颜|#icon heart|#icon heart-empty|#icon heart');
       }
 
       S.Drawing.loop(function () {
