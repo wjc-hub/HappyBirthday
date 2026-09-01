@@ -1,56 +1,57 @@
 /*
 
-  生日祝福页配置
-  ==============
-  只需修改本文件即可定制整个页面，无需改动其它代码。
-  祝福语中的 {name} 会被自动替换为下面的 name。
+  站点级配置
+  ==========
+  这里放“基本不会变”的东西：她的昵称、生日、头像、主题色。
+  每年的照片和心里话不在这里 —— 去 data/ 目录，一年一个文件。
+
+  详细的每年更新步骤见 HOW-TO-UPDATE.md
 
 */
 
-var CONFIG = {
+var SITE = {
 
   // ---------- 主角 ----------
 
-  // 祝福对象的名字，会替换所有祝福语与标题里的 {name}
-  name: '小明',
+  // 她的昵称。全站文案里写 {name} 都会替换成这个。
+  name: 'XXX',
+
+  // 生日，格式 'MM-DD'（月-日，不含年份）
+  birthday: '09-15',
+
+  // 生日当天起算，几天内仍显示完整演出。
+  // 留缓冲是因为她未必当天就点开链接。
+  celebrateDays: 3,
+
+  // 头像图片路径。用于粒子聚形（第二阶段功能）。
+  avatar: 'images/avatar.png',
+
+  // 头像采样方式：
+  //   'alpha'      读透明通道 —— 需要抠好的透明 PNG，轮廓最精确
+  //   'brightness' 读亮度，暗部放粒子 —— 原图直接可用，剪影风格
+  avatarSampling: 'brightness',
+
+  // ---------- 站点信息 ----------
 
   // 浏览器标签页标题
   title: '{name} 生日快乐',
 
-  // 引导层文案
-  intro: {
-    title: '🎂 {name}',
-    hint: '点击任意位置，开启今天的惊喜',
-  },
+  // 分享到微信/QQ 时卡片显示的描述
+  description: '写给 {name} 的生日纪念站',
 
-  // ---------- 祝福语序列 ----------
+  // 页脚署名。留空则不显示页脚。
+  footer: '粉丝自制 · 非官方 · 图片版权归原作者所有',
 
-  // 开场倒数几秒（设为 0 则不倒数）
-  countdown: 3,
-
-  // 逐条显示的祝福语。每条独立成一帧粒子文字。
-  // 建议每条不超过 6 个字，太长会被缩得很小。
-  messages: [
-    '祝',
-    '{name}',
-    '生日快乐',
-    '祝你',
-    '生日快乐',
-    '祝你幸福',
-    '祝你健康',
-    '前途光明',
-    '祝你',
-    '生日快乐！',
-  ],
-
-  // 祝福语播完后依次显示的图标（对应 font-awesome/ 下的 png 文件名）
-  icons: ['heart', 'heart-empty', 'heart'],
+  // 是否允许搜索引擎收录。
+  //
+  // ⚠️ 默认关闭。建议先把链接私下发给她本人，确认她愿意公开后再改成 true。
+  //    一旦被搜索引擎收录，即使之后删站，快照仍会存在一段时间，撤回成本很高。
+  allowIndexing: false,
 
   // ---------- 视觉主题 ----------
 
   theme: {
-    // 粒子文字的配色。多个颜色时，粒子会随机取用形成渐变效果。
-    // 只想要单色就留一个元素。
+    // 粒子文字配色，多个颜色时随机取用。只想单色就留一个。
     palette: [
       [255, 192, 203],  // 粉
       [255, 138, 174],  // 桃红
@@ -58,34 +59,66 @@ var CONFIG = {
       [255, 236, 179],  // 暖黄
     ],
 
-    // 是否显示背景星空
+    // 背景星空
     stars: true,
   },
 
-  // ---------- 回忆相册 ----------
+  // ---------- 引导层文案 ----------
 
-  // src 留空字符串则渲染为占位卡片（方便先搭好版式）。
-  // 放好真实图片后填入相对路径，例如 'images/photo1.jpg'。
-  photos: [
-    { src: '', caption: '第一次见面' },
-    { src: '', caption: '一起看过的风景' },
-    { src: '', caption: '那年夏天' },
-    { src: '', caption: '未来还很长' },
-  ],
+  intro: {
+    title: '🎂 {name}',
+    hint: '点击任意位置，开启今天的惊喜',
+  },
 
-  // 相册自动播放间隔（毫秒）；设为 0 则不自动播放
+  // ---------- 倒数页文案（非生日期间显示）----------
+
+  countdownPage: {
+    title: '距离 {name} 的生日',
+    unit: '天',
+    // 倒数为 0 时（生日当天但演出还没开始）显示的文字
+    todayText: '就是今天 🎉',
+    archiveHint: '往年的回忆在下面 ↓',
+  },
+
+  // ---------- 相册占位提示 ----------
+
+  photoPlaceholderTip: '把照片放进 images/<br>再填写 data/ 里对应年份的文件',
+
+  // ---------- 预留：粉丝留言 ----------
+
+  // 第一阶段不做后端。若以后想加留言，可先填一个外部链接
+  // （她的 B 站动态、QQ 群等），页面会显示“去留言”按钮。
+  // 留空则不显示。
+  guestbookUrl: '',
+};
+
+
+/* ---------- 以下为内部工具，一般无需修改 ---------- */
+
+// 替换 {name} 占位符
+SITE.fill = function (str) {
+  return String(str == null ? '' : str).replace(/\{name\}/g, SITE.name);
+};
+
+// 兼容层：粒子文字引擎 js/index.js 读取的是 CONFIG。
+// 它只需要 theme / intro / icons 等少量字段，这里做一层映射，
+// 避免为了改名去动那个第三方引擎。
+var CONFIG = {
+  name: SITE.name,
+  theme: SITE.theme,
+  intro: SITE.intro,
+  fill: SITE.fill,
+
+  // 下面这些由当年的 data 文件提供，在 index.html 里动态填充
+  icons: ['heart', 'heart-empty', 'heart'],
+  messages: [],
+  countdown: 3,
+  photos: [],
   photoInterval: 4000,
 };
 
-
-/*  以下为内部工具函数，一般无需修改  */
-
-// 把字符串里的 {name} 替换成配置的名字
-CONFIG.fill = function (str) {
-  return String(str).replace(/\{name\}/g, CONFIG.name);
-};
-
-// 拼装 Shape Shifter 引擎所需的动作序列字符串
+// 拼装粒子文字引擎所需的动作序列。
+// 内容取自 CONFIG，而 CONFIG 的内容字段由当年的 data 文件注入。
 CONFIG.buildSequence = function (withCountdown) {
   var parts = [''];   // 前导空帧：让画面先从空白开始
 
@@ -93,13 +126,13 @@ CONFIG.buildSequence = function (withCountdown) {
     parts.push('#countdown ' + CONFIG.countdown);
   }
 
-  for (var i = 0; i < CONFIG.messages.length; i++) {
-    parts.push(CONFIG.fill(CONFIG.messages[i]));
-  }
+  (CONFIG.messages || []).forEach(function (m) {
+    parts.push(SITE.fill(m));
+  });
 
-  for (var j = 0; j < CONFIG.icons.length; j++) {
-    parts.push('#icon ' + CONFIG.icons[j]);
-  }
+  (CONFIG.icons || []).forEach(function (icon) {
+    parts.push('#icon ' + icon);
+  });
 
   return parts.join('|');
 };

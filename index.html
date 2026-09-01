@@ -6,6 +6,12 @@
     <title>生日快乐</title>
     <link href="favicon.ico" rel="shortcut icon">
 
+    <!-- 分享到微信/QQ 时的卡片信息，内容由 config.js 动态填充 -->
+    <meta property="og:type" content="website"/>
+    <meta property="og:title" id="og-title" content=""/>
+    <meta property="og:description" id="og-desc" content=""/>
+    <meta name="description" id="meta-desc" content=""/>
+
     <style>
         html, body {
             margin: 0;
@@ -136,8 +142,18 @@
 
         body.started .fab { display: inline-flex; }
 
+        /* 倒数页里的按钮不受 body.started 控制，常显 */
+        .fab--static {
+            position: static;
+            display: inline-flex;
+        }
+
         #btn-mute  { top: 20px;    right: 20px; }
         #btn-album { bottom: 24px; right: 20px; }
+        #btn-timeline { bottom: 24px; left: 20px; }
+
+        /* 倒数页模式下只显示音乐按钮，其余入口在页面内 */
+        body.countdown-mode #btn-mute { display: inline-flex; }
 
         /* ---------- 回忆相册 ---------- */
 
@@ -323,6 +339,262 @@
             opacity: 1;
             transform: translate(-50%, 0);
         }
+
+        /* ---------- 倒数页（非生日期间显示）---------- */
+
+        #countdown-page {
+            position: absolute;
+            inset: 0;
+            z-index: 9500;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            text-align: center;
+            padding: 0 24px;
+        }
+
+        #countdown-page.cd--visible { display: flex; }
+
+        #cd-label {
+            font-size: clamp(15px, 4vw, 20px);
+            color: rgba(255, 255, 255, .75);
+            letter-spacing: .14em;
+        }
+
+        #cd-number {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(255, 160, 200, .75), 0 0 70px rgba(255, 120, 180, .45);
+        }
+
+        #cd-days {
+            font-size: clamp(64px, 22vw, 150px);
+            font-weight: 700;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #cd-unit {
+            font-size: clamp(18px, 5vw, 30px);
+            opacity: .85;
+        }
+
+        /* 生日当天但演出尚未开始时，用这行替代数字 */
+        #cd-today {
+            font-size: clamp(30px, 8vw, 56px);
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(255, 160, 200, .8);
+            animation: float 3.2s ease-in-out infinite;
+        }
+
+        #cd-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 14px;
+        }
+
+        /* ---------- 时光轴 ---------- */
+
+        .tl-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 9850;
+            background: rgba(6, 3, 16, .96);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .4s ease;
+        }
+
+        .tl-modal--visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .tl-scroll {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
+
+        .tl-inner {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 72px 20px 60px;
+        }
+
+        .tl-close {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 2;
+            width: 40px;
+            height: 40px;
+            font-size: 24px;
+            line-height: 1;
+            color: #fff;
+            background: rgba(255, 255, 255, .12);
+            border: 1px solid rgba(255, 255, 255, .25);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .tl-close:hover { background: rgba(255, 255, 255, .24); }
+
+        /* 每一年之间用竖线连起来，形成时间轴的视觉 */
+        .tl-year {
+            position: relative;
+            padding: 0 0 64px 0;
+        }
+
+        .tl-year:not(:last-of-type)::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 24px;
+            width: 1px;
+            height: 32px;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, .35), transparent);
+        }
+
+        .tl-head {
+            text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .tl-year-num {
+            font-size: clamp(38px, 11vw, 64px);
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            letter-spacing: .04em;
+            text-shadow: 0 0 26px rgba(255, 150, 195, .5);
+        }
+
+        .tl-headline {
+            margin-top: 10px;
+            font-size: clamp(14px, 3.6vw, 17px);
+            color: rgba(255, 255, 255, .65);
+            letter-spacing: .08em;
+        }
+
+        .tl-photos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+            margin-bottom: 26px;
+        }
+
+        .tl-photo {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 4 / 3;
+            background: #150c28;
+        }
+
+        .tl-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .tl-photo-ph {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, .55);
+        }
+
+        .tl-photo-cap {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 22px 12px 9px;
+            font-size: 13px;
+            color: #fff;
+            background: linear-gradient(to top, rgba(0, 0, 0, .78), transparent);
+        }
+
+        .tl-quotes { margin-bottom: 24px; }
+
+        .tl-quote {
+            margin: 0 0 14px;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, .06);
+            border-left: 3px solid rgba(255, 160, 200, .8);
+            border-radius: 0 10px 10px 0;
+        }
+
+        .tl-quote-text {
+            margin: 0;
+            font-size: clamp(15px, 4vw, 18px);
+            line-height: 1.75;
+            color: rgba(255, 255, 255, .93);
+        }
+
+        .tl-quote-from {
+            display: block;
+            margin-top: 9px;
+            font-size: 12px;
+            font-style: normal;
+            color: rgba(255, 255, 255, .5);
+            letter-spacing: .06em;
+        }
+
+        .tl-letter {
+            padding: 20px 22px;
+            background: rgba(255, 255, 255, .04);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 12px;
+        }
+
+        .tl-letter p {
+            margin: 0 0 12px;
+            font-size: clamp(14px, 3.7vw, 16px);
+            line-height: 1.95;
+            color: rgba(255, 255, 255, .82);
+        }
+
+        .tl-letter p:last-child { margin-bottom: 0; }
+
+        .tl-empty {
+            padding: 70px 20px;
+            text-align: center;
+            font-size: 16px;
+            line-height: 2;
+            color: rgba(255, 255, 255, .6);
+        }
+
+        .tl-empty span {
+            font-size: 13px;
+            color: rgba(255, 255, 255, .38);
+        }
+
+        .tl-footer {
+            margin-top: 40px;
+            padding-top: 22px;
+            border-top: 1px solid rgba(255, 255, 255, .1);
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.9;
+            color: rgba(255, 255, 255, .4);
+        }
     </style>
 </head>
 <body>
@@ -341,12 +613,28 @@
     <div id="intro-hint"></div>
 </div>
 
+<!-- 倒数页：非生日期间显示，代替引导层 -->
+<div id="countdown-page">
+    <div id="cd-label"></div>
+    <div id="cd-number"><span id="cd-days">--</span><span id="cd-unit"></span></div>
+    <div id="cd-today"></div>
+    <div id="cd-actions">
+        <button class="fab fab--static" id="btn-timeline-cd" type="button">🕰️ <span>往年回忆</span></button>
+    </div>
+</div>
+
 <button class="fab" id="btn-mute" type="button">🔊 <span>音乐开</span></button>
 <button class="fab" id="btn-album" type="button">📷 <span>回忆相册</span></button>
+<button class="fab" id="btn-timeline" type="button">🕰️ <span>时光轴</span></button>
 
 <div id="toast"></div>
 
 <script src="js/config.js"></script>
+<script src="js/hb.js"></script>
+
+<!-- 每年的内容：新增一年就在这里加一行 -->
+<script src="data/2026.js"></script>
+
 <script>
     // ---------- 环境判断 ----------
 
@@ -354,11 +642,40 @@
         isWeixin = /micromessenger/.test(UA),
         isMobile = /android|iphone|ipad|ipod|harmony/.test(UA) || window.innerWidth < 640;
 
-    // ---------- 引导层与页面文案 ----------
+    // ---------- 把当年数据注入粒子引擎 ----------
+    // js/index.js 读的是 CONFIG，这里用当年的 data 覆盖它的内容字段
 
-    document.title = CONFIG.fill(CONFIG.title);
-    document.getElementById('intro-title').textContent = CONFIG.fill(CONFIG.intro.title);
-    document.getElementById('intro-hint').textContent = CONFIG.fill(CONFIG.intro.hint);
+    (function () {
+        var y = HB.featured();
+        if (!y) return;
+
+        if (y.messages && y.messages.length) CONFIG.messages = y.messages;
+        if (y.icons && y.icons.length)       CONFIG.icons = y.icons;
+        if (y.countdown != null)             CONFIG.countdown = y.countdown;
+        if (y.photos)                        CONFIG.photos = y.photos;
+    }());
+
+    // ---------- 页面文案 ----------
+
+    document.title = SITE.fill(SITE.title);
+    document.getElementById('intro-title').textContent = SITE.fill(SITE.intro.title);
+    document.getElementById('intro-hint').textContent = SITE.fill(SITE.intro.hint);
+
+    // 分享卡片信息
+    (function () {
+        var desc = SITE.fill(SITE.description || '');
+        document.getElementById('og-title').content = document.title;
+        document.getElementById('og-desc').content = desc;
+        document.getElementById('meta-desc').content = desc;
+
+        // 未开放收录时插入 noindex，与 robots.txt 双重保险
+        if (!SITE.allowIndexing) {
+            var m = document.createElement('meta');
+            m.name = 'robots';
+            m.content = 'noindex, nofollow';
+            document.head.appendChild(m);
+        }
+    }());
 
     var started = false;
 
@@ -804,26 +1121,73 @@
 </script>
 
 <script src="js/carousel.js"></script>
+<script src="js/timeline.js"></script>
 <script>
-    // ---------- 回忆相册入口 ----------
+    // ---------- 相册与时光轴入口 ----------
 
     (function () {
-        var btn = document.getElementById('btn-album');
+        var album = document.getElementById('btn-album'),
+            tl = document.getElementById('btn-timeline'),
+            tlCd = document.getElementById('btn-timeline-cd');
 
-        if (!Carousel.hasPhotos()) {
-            btn.remove();
-            return;
+        if (Carousel.hasPhotos()) {
+            album.addEventListener('click', function (e) {
+                e.stopPropagation();
+                Carousel.open();
+            });
+        } else {
+            album.remove();
         }
 
-        btn.addEventListener('click', function (e) {
+        function openTimeline(e) {
             e.stopPropagation();
-            Carousel.open();
-        });
+            Timeline.open();
+        }
+
+        tl.addEventListener('click', openTimeline);
+        tlCd.addEventListener('click', openTimeline);
     }());
 </script>
 
 <script src="js/index.js"></script>
 <script>
+    // ---------- 页面分流：倒数页 or 生日演出 ----------
+    //
+    // 非生日期间显示倒数页；生日当天（及之后 celebrateDays 天内）
+    // 显示引导层，点击后进入完整演出。
+    // 加 ?celebrate 参数可强制预览演出，方便调试。
+
+    (function () {
+        var force = /[?&]celebrate\b/.test(window.location.search),
+            celebrating = force || HB.isCelebrating();
+
+        if (celebrating) return;   // 走原有的引导层流程
+
+        var intro = document.getElementById('intro'),
+            page = document.getElementById('countdown-page'),
+            days = HB.daysUntilBirthday(),
+            cd = SITE.countdownPage || {};
+
+        // 倒数页取代引导层
+        intro.style.display = 'none';
+        page.classList.add('cd--visible');
+
+        document.getElementById('cd-label').textContent = SITE.fill(cd.title || '');
+
+        if (days === 0) {
+            // 生日当天但已过庆祝期（celebrateDays 设为 0 时才可能）
+            document.getElementById('cd-number').style.display = 'none';
+            document.getElementById('cd-today').textContent = cd.todayText || '就是今天 🎉';
+        } else {
+            document.getElementById('cd-today').style.display = 'none';
+            document.getElementById('cd-days').textContent = days;
+            document.getElementById('cd-unit').textContent = cd.unit || '天';
+        }
+
+        // 倒数页也放点音乐控制，但不自动播放
+        document.body.classList.add('countdown-mode');
+    }());
+
     // 粒子文字引擎需要 DOM 就绪后再初始化待机画面
     window.addEventListener('load', function () {
         init(1);
