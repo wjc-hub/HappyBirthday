@@ -1,0 +1,16 @@
+# 编辑器 / IDE 本地配置
+.idea/
+.vscode/
+*.iml
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 私人照片（如需部署到公开仓库，取消下面的注释以避免照片外泄）
+# images/

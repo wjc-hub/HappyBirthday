@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
+    <title>生日快乐</title>
+    <link href="favicon.ico" rel="shortcut icon">
+
+    <style>
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* 深夜空渐变：让烟花与发光地面网格更突出 */
+            background: radial-gradient(ellipse at 50% 120%, #2b1055 0%, #16082e 45%, #06020f 100%);
+            font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ---------- 背景星空 ---------- */
+
+        #stars {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* ---------- 画布 ---------- */
+
+        #canvas, .canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas { z-index: 8888; }
+        .canvas { z-index: 9000; }
+
+        /* 四周暗角，把视线聚到画面中央 */
+        #vignette {
+            position: absolute;
+            inset: 0;
+            z-index: 9100;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, .55) 100%);
+        }
+
+        /* ---------- 引导层 ---------- */
+
+        #intro {
+            position: absolute;
+            inset: 0;
+            z-index: 9500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+            cursor: pointer;
+            background: rgba(6, 2, 15, .55);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            transition: opacity .8s ease;
+        }
+
+        #intro.intro--hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #intro-title {
+            font-size: clamp(32px, 9vw, 64px);
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: .08em;
+            text-shadow: 0 0 24px rgba(255, 160, 200, .8), 0 0 60px rgba(255, 120, 180, .5);
+            animation: float 3.2s ease-in-out infinite;
+        }
+
+        #intro-hint {
+            font-size: clamp(14px, 3.6vw, 18px);
+            color: rgba(255, 255, 255, .8);
+            letter-spacing: .12em;
+            padding: 12px 28px;
+            border: 1px solid rgba(255, 255, 255, .35);
+            border-radius: 999px;
+            animation: breathe 2.4s ease-in-out infinite;
+        }
+
+        #intro-error {
+            display: none;
+            font-size: 13px;
+            color: #ffcf6b;
+            letter-spacing: .05em;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-10px); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: .55; transform: scale(1); }
+            50%      { opacity: 1;   transform: scale(1.05); }
+        }
+
+        /* ---------- 右上 / 右下 控制按钮 ---------- */
+
+        .fab {
+            position: absolute;
+            z-index: 9400;
+            display: none;              /* 引导层关闭后才显示 */
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-family: inherit;
+            color: rgba(255, 255, 255, .9);
+            background: rgba(255, 255, 255, .1);
+            border: 1px solid rgba(255, 255, 255, .25);
+            border-radius: 999px;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: background .25s, transform .25s;
+        }
+
+        .fab:hover {
+            background: rgba(255, 255, 255, .2);
+            transform: translateY(-2px);
+        }
+
+        body.started .fab { display: inline-flex; }
+
+        #btn-mute  { top: 20px;    right: 20px; }
+        #btn-album { bottom: 24px; right: 20px; }
+
+        /* ---------- 回忆相册 ---------- */
+
+        .carousel-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 9800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(4, 2, 12, .82);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .35s ease;
+        }
+
+        .carousel-modal--visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .carousel-box {
+            position: relative;
+            width: min(88vw, 720px);
+        }
+
+        .carousel-viewport {
+            overflow: hidden;
+            border-radius: 16px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
+        }
+
+        .carousel-track {
+            display: flex;
+            transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+        }
+
+        .carousel-slide {
+            position: relative;
+            flex: 0 0 100%;
+            aspect-ratio: 5 / 3;
+            background: #120a24;
+        }
+
+        .carousel-slide img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .carousel-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: rgba(255, 255, 255, .95);
+            text-align: center;
+        }
+
+        .carousel-placeholder-num {
+            font-size: clamp(40px, 9vw, 72px);
+            font-weight: 700;
+            opacity: .5;
+        }
+
+        .carousel-placeholder-tip {
+            font-size: 13px;
+            line-height: 1.7;
+            opacity: .85;
+            padding: 0 16px;
+        }
+
+        .carousel-caption {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 32px 20px 16px;
+            font-size: clamp(14px, 3.4vw, 18px);
+            color: #fff;
+            text-align: center;
+            letter-spacing: .06em;
+            background: linear-gradient(to top, rgba(0, 0, 0, .7), transparent);
+        }
+
+        .carousel-btn, .carousel-close {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: rgba(0, 0, 0, .45);
+            border: 1px solid rgba(255, 255, 255, .2);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .carousel-btn:hover, .carousel-close:hover {
+            background: rgba(0, 0, 0, .75);
+        }
+
+        .carousel-btn {
+            top: 50%;
+            width: 44px;
+            height: 44px;
+            margin-top: -22px;
+            font-size: 16px;
+        }
+
+        .carousel-prev { left: -22px; }
+        .carousel-next { right: -22px; }
+
+        .carousel-close {
+            top: -18px;
+            right: -18px;
+            width: 36px;
+            height: 36px;
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .carousel-dots {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .carousel-dot {
+            width: 10px;
+            height: 10px;
+            padding: 0;
+            background: rgba(255, 255, 255, .3);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background .2s, transform .2s;
+        }
+
+        .carousel-dot--active {
+            background: #fff;
+            transform: scale(1.35);
+        }
+
+        /* 窄屏时把左右按钮收进画面内，避免溢出屏幕 */
+        @media (max-width: 640px) {
+            .carousel-prev  { left: 8px; }
+            .carousel-next  { right: 8px; }
+            .carousel-close { top: -46px; right: 0; }
+        }
+
+        /* ---------- 轻提示 ---------- */
+
+        #toast {
+            position: fixed;
+            left: 50%;
+            bottom: 88px;
+            z-index: 9700;
+            max-width: 82vw;
+            padding: 12px 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #fff;
+            text-align: center;
+            white-space: normal;
+            background: rgba(20, 10, 40, .9);
+            border: 1px solid rgba(255, 255, 255, .2);
+            border-radius: 12px;
+            transform: translate(-50%, 12px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .3s ease, transform .3s ease;
+        }
+
+        #toast.toast--visible {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    </style>
+</head>
+<body>
+
+<audio loop="loop" id="audios" preload="metadata" playsinline webkit-playsinline>
+    <source src="happy-birthday.mp3" type="audio/mpeg"/>
+</audio>
+
+<canvas id="stars"></canvas>
+<canvas id="canvas"></canvas>
+<canvas class="canvas"></canvas>
+<div id="vignette"></div>
+
+<div id="intro">
+    <div id="intro-title"></div>
+    <div id="intro-hint"></div>
+</div>
+
+<button class="fab" id="btn-mute" type="button">🔊 <span>音乐开</span></button>
+<button class="fab" id="btn-album" type="button">📷 <span>回忆相册</span></button>
+
+<div id="toast"></div>
+
+<script src="js/config.js"></script>
+<script>
+    // ---------- 环境判断 ----------
+
+    var UA = navigator.userAgent.toLowerCase(),
+        isWeixin = /micromessenger/.test(UA),
+        isMobile = /android|iphone|ipad|ipod|harmony/.test(UA) || window.innerWidth < 640;
+
+    // ---------- 引导层与页面文案 ----------
+
+    document.title = CONFIG.fill(CONFIG.title);
+    document.getElementById('intro-title').textContent = CONFIG.fill(CONFIG.intro.title);
+    document.getElementById('intro-hint').textContent = CONFIG.fill(CONFIG.intro.hint);
+
+    var started = false;
+
+    function toast(msg, ms) {
+        var el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('toast--visible');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () {
+            el.classList.remove('toast--visible');
+        }, ms || 4000);
+    }
+
+    function start() {
+        if (started) return;
+        started = true;
+
+        var intro = document.getElementById('intro');
+        intro.classList.add('intro--hidden');
+        // 淡出结束后彻底移出布局，避免它挡住下方的相册按钮
+        setTimeout(function () { intro.style.display = 'none'; }, 800);
+
+        document.body.classList.add('started');
+
+        init(0);            // 切换粒子文字到正式祝福序列
+        playMusic();
+    }
+
+    // 音乐播放失败不回滚动画——祝福照常进行，只提示音乐状态
+    function playMusic() {
+        var audio = document.getElementById('audios');
+
+        function attempt() {
+            var p = audio.play();
+
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () {
+                    // 微信里通常是右上角菜单静音或系统静音键导致
+                    toast(isWeixin
+                        ? '🎵 若听不到音乐，请检查手机侧边的静音键'
+                        : '🎵 点击右上角的按钮可以开启音乐', 5000);
+                    syncMuteButton(true);
+                });
+            }
+        }
+
+        // 微信 WebView 需等桥就绪后才允许播放
+        if (isWeixin && typeof WeixinJSBridge === 'undefined') {
+            document.addEventListener('WeixinJSBridgeReady', attempt, false);
+            // 桥迟迟不来时也照常尝试一次，避免永远没声音
+            setTimeout(attempt, 1200);
+        } else {
+            attempt();
+        }
+    }
+
+
+    document.getElementById('intro').addEventListener('click', start);
+    document.querySelector('.canvas').addEventListener('click', start);
+
+    // ---------- 音乐开关 ----------
+
+    function syncMuteButton(off) {
+        var btn = document.getElementById('btn-mute');
+        btn.firstChild.nodeValue = off ? '🔇 ' : '🔊 ';
+        btn.querySelector('span').textContent = off ? '音乐关' : '音乐开';
+    }
+
+    document.getElementById('btn-mute').addEventListener('click', function (e) {
+        e.stopPropagation();
+        var audio = document.getElementById('audios');
+
+        if (audio.paused) {
+            // 之前被自动播放策略拦下了，这次是真实用户手势，重试
+            audio.muted = false;
+            var p = audio.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () {
+                    toast('🎵 浏览器不允许播放，请检查手机静音键');
+                });
+            }
+            syncMuteButton(false);
+        } else {
+            audio.muted = !audio.muted;
+            syncMuteButton(audio.muted);
+        }
+    });
+
+    // ---------- 背景星空 ----------
+
+    (function () {
+        var el = document.getElementById('stars');
+
+        if (!(CONFIG.theme && CONFIG.theme.stars)) {
+            el.style.display = 'none';
+            return;
+        }
+
+        var ctx = el.getContext('2d'),
+            stars = [];
+
+        function seed() {
+            el.width = el.clientWidth;
+            el.height = el.clientHeight;
+            stars = [];
+
+            // 星星数量随屏幕面积缩放，小屏不至于过密
+            var count = Math.round(el.width * el.height / 9000);
+            for (var i = 0; i < count; i++) {
+                stars.push({
+                    x: Math.random() * el.width,
+                    y: Math.random() * el.height,
+                    r: Math.random() * 1.1 + 0.3,
+                    a: Math.random(),
+                    v: Math.random() * 0.015 + 0.004
+                });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, el.width, el.height);
+
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+
+                s.a += s.v;
+                if (s.a > 1 || s.a < 0.1) s.v = -s.v;   // 呼吸闪烁
+
+                ctx.globalAlpha = s.a;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.globalAlpha = 1;
+            requestAnimationFrame(draw);
+        }
+
+        seed();
+        window.addEventListener('resize', seed);
+        draw();
+    }());
+</script>
+
+<script>
+    // ---------- 3D 透视烟花 ----------
+    // 源自 cantelope.org 的 NYE 效果
+
+    function initVars(){
+
+        pi=Math.PI;
+        ctx=canvas.getContext("2d");
+        canvas.width=canvas.clientWidth;
+        canvas.height=canvas.clientHeight;
+        cx=canvas.width/2;
+        cy=canvas.height/2;
+        playerZ=-25;
+        playerX=playerY=playerVX=playerVY=playerVZ=pitch=yaw=pitchV=yawV=0;
+        scale=600;
+        seedTimer=0;seedInterval=5,seedLife=100;gravity=.02;
+        seeds=new Array();
+        sparkPics=new Array();
+        s = "./NYE/";
+        for(i=1;i<=10;++i){
+            sparkPic=new Image();
+            sparkPic.src=s+"spark"+i+".png";
+            sparkPics.push(sparkPic);
+        }
+        sparks=new Array();
+        frames = 0;
+        running = false;
+
+        // 手机 GPU 较弱：降低火花数量与地面网格密度，保住帧率
+        sparkCap    = isMobile ? 70  : 150;
+        gridStepX   = isMobile ? 5   : 3;
+        gridStepZ   = isMobile ? 6   : 4;
+    }
+
+    function rasterizePoint(x,y,z){
+
+        var p,d;
+        x-=playerX;
+        y-=playerY;
+        z-=playerZ;
+        p=Math.atan2(x,z);
+        d=Math.sqrt(x*x+z*z);
+        x=Math.sin(p-yaw)*d;
+        z=Math.cos(p-yaw)*d;
+        p=Math.atan2(y,z);
+        d=Math.sqrt(y*y+z*z);
+        y=Math.sin(p-pitch)*d;
+        z=Math.cos(p-pitch)*d;
+        var rx1=-1000,ry1=1,rx2=1000,ry2=1,rx3=0,ry3=0,rx4=x,ry4=z,uc=(ry4-ry3)*(rx2-rx1)-(rx4-rx3)*(ry2-ry1);
+        if(!uc) return {x:0,y:0,d:-1};
+        var ua=((rx4-rx3)*(ry1-ry3)-(ry4-ry3)*(rx1-rx3))/uc;
+        var ub=((rx2-rx1)*(ry1-ry3)-(ry2-ry1)*(rx1-rx3))/uc;
+        if(!z)z=.000000001;
+        if(ua>0&&ua<1&&ub>0&&ub<1){
+            return {
+                x:cx+(rx1+ua*(rx2-rx1))*scale,
+                y:cy+y/z*scale,
+                d:Math.sqrt(x*x+y*y+z*z)
+            };
+        }else{
+            return {
+                x:cx+(rx1+ua*(rx2-rx1))*scale,
+                y:cy+y/z*scale,
+                d:-1
+            };
+        }
+    }
+
+    function spawnSeed(){
+
+        seed=new Object();
+        seed.x=-50+Math.random()*100;
+        seed.y=25;
+        seed.z=-50+Math.random()*100;
+        seed.vx=.1-Math.random()*.2;
+        seed.vy=-1.5;
+        seed.vz=.1-Math.random()*.2;
+        seed.born=frames;
+        seeds.push(seed);
+    }
+
+    function splode(x,y,z){
+
+        t=5+parseInt(Math.random()*sparkCap);
+        sparkV=1+Math.random()*2.5;
+        type=parseInt(Math.random()*3);
+        switch(type){
+            case 0:
+                pic1=parseInt(Math.random()*10);
+                break;
+            case 1:
+                pic1=parseInt(Math.random()*10);
+                do{ pic2=parseInt(Math.random()*10); }while(pic2==pic1);
+                break;
+            case 2:
+                pic1=parseInt(Math.random()*10);
+                do{ pic2=parseInt(Math.random()*10); }while(pic2==pic1);
+                do{ pic3=parseInt(Math.random()*10); }while(pic3==pic1 || pic3==pic2);
+                break;
+        }
+        for(m=1;m<t;++m){
+            spark=new Object();
+            spark.x=x; spark.y=y; spark.z=z;
+            p1=pi*2*Math.random();
+            p2=pi*Math.random();
+            v=sparkV*(1+Math.random()/6)
+            spark.vx=Math.sin(p1)*Math.sin(p2)*v;
+            spark.vz=Math.cos(p1)*Math.sin(p2)*v;
+            spark.vy=Math.cos(p2)*v;
+            switch(type){
+                case 0: spark.img=sparkPics[pic1]; break;
+                case 1:
+                    spark.img=sparkPics[parseInt(Math.random()*2)?pic1:pic2];
+                    break;
+                case 2:
+                    switch(parseInt(Math.random()*3)){
+                        case 0: spark.img=sparkPics[pic1]; break;
+                        case 1: spark.img=sparkPics[pic2]; break;
+                        case 2: spark.img=sparkPics[pic3]; break;
+                    }
+                    break;
+            }
+            spark.radius=25+Math.random()*50;
+            spark.alpha=1;
+            spark.trail=new Array();
+            sparks.push(spark);
+        }
+
+        // 爆炸音效只在用户已交互后播放，否则会被浏览器策略拦截并刷满控制台
+        if(started){
+            switch(parseInt(Math.random()*4)){
+                case 0:	pow=new Audio(s+"pow1.ogg"); break;
+                case 1:	pow=new Audio(s+"pow2.ogg"); break;
+                case 2:	pow=new Audio(s+"pow3.ogg"); break;
+                case 3:	pow=new Audio(s+"pow4.ogg"); break;
+            }
+            d=Math.sqrt((x-playerX)*(x-playerX)+(y-playerY)*(y-playerY)+(z-playerZ)*(z-playerZ));
+            pow.volume=Math.min(1, 1.5/(1+d/10));
+            if(document.getElementById('audios').muted) pow.volume=0;
+            var promise=pow.play();
+            if(promise && typeof promise.catch === 'function') promise.catch(function(){});
+        }
+    }
+
+    function doLogic(){
+
+        if(seedTimer<frames){
+            seedTimer=frames+seedInterval*Math.random()*10;
+            spawnSeed();
+        }
+        for(i=0;i<seeds.length;++i){
+            seeds[i].vy+=gravity;
+            seeds[i].x+=seeds[i].vx;
+            seeds[i].y+=seeds[i].vy;
+            seeds[i].z+=seeds[i].vz;
+            if(frames-seeds[i].born>seedLife){
+                splode(seeds[i].x,seeds[i].y,seeds[i].z);
+                seeds.splice(i,1);
+            }
+        }
+        for(i=0;i<sparks.length;++i){
+            if(sparks[i].alpha>0 && sparks[i].radius>5){
+                sparks[i].alpha-=.01;
+                sparks[i].radius/=1.02;
+                sparks[i].vy+=gravity;
+                point=new Object();
+                point.x=sparks[i].x;
+                point.y=sparks[i].y;
+                point.z=sparks[i].z;
+                if(sparks[i].trail.length){
+                    x=sparks[i].trail[sparks[i].trail.length-1].x;
+                    y=sparks[i].trail[sparks[i].trail.length-1].y;
+                    z=sparks[i].trail[sparks[i].trail.length-1].z;
+                    d=((point.x-x)*(point.x-x)+(point.y-y)*(point.y-y)+(point.z-z)*(point.z-z));
+                    if(d>9){
+                        sparks[i].trail.push(point);
+                    }
+                }else{
+                    sparks[i].trail.push(point);
+                }
+                if(sparks[i].trail.length>5)sparks[i].trail.splice(0,1);
+                sparks[i].x+=sparks[i].vx;
+                sparks[i].y+=sparks[i].vy;
+                sparks[i].z+=sparks[i].vz;
+                sparks[i].vx/=1.075;
+                sparks[i].vy/=1.075;
+                sparks[i].vz/=1.075;
+            }else{
+                sparks.splice(i,1);
+            }
+        }
+        p=Math.atan2(playerX,playerZ);
+        d=Math.sqrt(playerX*playerX+playerZ*playerZ);
+        d+=Math.sin(frames/80)/1.25;
+        t=Math.sin(frames/200)/40;
+        playerX=Math.sin(p+t)*d;
+        playerZ=Math.cos(p+t)*d;
+        yaw=pi+p+t;
+    }
+
+    function draw(){
+
+        ctx.clearRect(0,0,cx*2,cy*2);
+
+        ctx.fillStyle="#ff8";
+        for(i=-100;i<100;i+=gridStepX){
+            for(j=-100;j<100;j+=gridStepZ){
+                x=i;z=j;y=25;
+                point=rasterizePoint(x,y,z);
+                if(point.d!=-1){
+                    size=250/(1+point.d);
+                    d = Math.sqrt(x * x + z * z);
+                    a = 0.75 - Math.pow(d / 100, 6) * 0.75;
+                    if(a>0){
+                        ctx.globalAlpha = a;
+                        ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
+                    }
+                }
+            }
+        }
+        ctx.globalAlpha=1;
+        for(i=0;i<seeds.length;++i){
+            point=rasterizePoint(seeds[i].x,seeds[i].y,seeds[i].z);
+            if(point.d!=-1){
+                size=200/(1+point.d);
+                ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
+            }
+        }
+        point1=new Object();
+        for(i=0;i<sparks.length;++i){
+            point=rasterizePoint(sparks[i].x,sparks[i].y,sparks[i].z);
+            if(point.d!=-1){
+                size=sparks[i].radius*200/(1+point.d);
+                if(sparks[i].alpha<0)sparks[i].alpha=0;
+                if(sparks[i].trail.length){
+                    point1.x=point.x;
+                    point1.y=point.y;
+                    switch(sparks[i].img){
+                        case sparkPics[0]:ctx.strokeStyle="#f84";break;
+                        case sparkPics[1]:ctx.strokeStyle="#84f";break;
+                        case sparkPics[2]:ctx.strokeStyle="#8ff";break;
+                        case sparkPics[3]:ctx.strokeStyle="#fff";break;
+                        case sparkPics[4]:ctx.strokeStyle="#4f8";break;
+                        case sparkPics[5]:ctx.strokeStyle="#f44";break;
+                        case sparkPics[6]:ctx.strokeStyle="#f84";break;
+                        case sparkPics[7]:ctx.strokeStyle="#84f";break;
+                        case sparkPics[8]:ctx.strokeStyle="#fff";break;
+                        case sparkPics[9]:ctx.strokeStyle="#44f";break;
+                    }
+                    for(j=sparks[i].trail.length-1;j>=0;--j){
+                        point2=rasterizePoint(sparks[i].trail[j].x,sparks[i].trail[j].y,sparks[i].trail[j].z);
+                        if(point2.d!=-1){
+                            ctx.globalAlpha=j/sparks[i].trail.length*sparks[i].alpha/2;
+                            ctx.beginPath();
+                            ctx.moveTo(point1.x,point1.y);
+                            ctx.lineWidth=1+sparks[i].radius*10/(sparks[i].trail.length-j)/(1+point2.d);
+                            ctx.lineTo(point2.x,point2.y);
+                            ctx.stroke();
+                            point1.x=point2.x;
+                            point1.y=point2.y;
+                        }
+                    }
+                }
+                ctx.globalAlpha=sparks[i].alpha;
+                ctx.drawImage(sparks[i].img,point.x-size/2,point.y-size/2,size,size);
+            }
+        }
+    }
+
+    function frame(){
+
+        if(frames>100000){
+            seedTimer=0;
+            frames=0;
+        }
+        frames++;
+        draw();
+        doLogic();
+        requestAnimationFrame(frame);
+    }
+
+    // 只允许启动一条 rAF 链，否则 frames 每帧递增两次，烟花速度与密度会翻倍
+    function startFireworks(){
+        if(running) return;
+        running = true;
+        frame();
+    }
+
+    window.addEventListener("resize",()=>{
+        canvas.width=canvas.clientWidth;
+        canvas.height=canvas.clientHeight;
+        cx=canvas.width/2;
+        cy=canvas.height/2;
+    });
+
+    initVars();
+    startFireworks();
+</script>
+
+<script src="js/carousel.js"></script>
+<script>
+    // ---------- 回忆相册入口 ----------
+
+    (function () {
+        var btn = document.getElementById('btn-album');
+
+        if (!Carousel.hasPhotos()) {
+            btn.remove();
+            return;
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            Carousel.open();
+        });
+    }());
+</script>
+
+<script src="js/index.js"></script>
+<script>
+    // 粒子文字引擎需要 DOM 就绪后再初始化待机画面
+    window.addEventListener('load', function () {
+        init(1);
+    });
+</script>
+
+</body>
+</html>
