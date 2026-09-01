@@ -595,6 +595,186 @@
             line-height: 1.9;
             color: rgba(255, 255, 255, .4);
         }
+
+        /* ---------- 打字机长信 ---------- */
+
+        #letter {
+            position: fixed;
+            inset: 0;
+            z-index: 9600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(6, 3, 16, .72);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .7s ease;
+        }
+
+        #letter.letter--visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .letter-box {
+            width: min(92vw, 560px);
+            max-height: 76vh;
+            display: flex;
+            flex-direction: column;
+            padding: 30px 28px 20px;
+            background: rgba(255, 255, 255, .055);
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 16px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+            cursor: pointer;
+        }
+
+        .letter-body {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .letter-body p {
+            margin: 0 0 15px;
+            font-size: clamp(15px, 4vw, 17px);
+            line-height: 2.05;
+            color: rgba(255, 255, 255, .92);
+            letter-spacing: .03em;
+        }
+
+        /* 正在打字的那一段末尾显示光标 */
+        .letter-body p:last-child::after {
+            content: '';
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            margin-left: 3px;
+            vertical-align: -0.15em;
+            background: rgba(255, 190, 215, .95);
+            animation: caret 1s step-end infinite;
+        }
+
+        #letter.letter--done .letter-body p:last-child::after {
+            display: none;
+        }
+
+        @keyframes caret {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0; }
+        }
+
+        .letter-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
+        .letter-skip {
+            padding: 7px 16px;
+            font-size: 13px;
+            font-family: inherit;
+            color: rgba(255, 255, 255, .7);
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, .25);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background .2s, color .2s;
+        }
+
+        .letter-skip:hover {
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+        }
+
+        #letter.letter--done .letter-skip::after { content: ' ✓'; }
+
+        /* ---------- 三连彩蛋 ---------- */
+
+        #triple {
+            position: absolute;
+            left: 50%;
+            bottom: 22px;
+            z-index: 9400;
+            display: none;
+            gap: 14px;
+            transform: translateX(-50%);
+        }
+
+        #triple.triple--visible { display: flex; }
+
+        .triple-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            width: 62px;
+            padding: 9px 0;
+            font-family: inherit;
+            color: rgba(255, 255, 255, .6);
+            background: rgba(255, 255, 255, .07);
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: background .25s, border-color .25s, color .25s;
+        }
+
+        .triple-icon {
+            font-size: 22px;
+            line-height: 1;
+            filter: grayscale(1) opacity(.55);
+            transition: filter .3s;
+        }
+
+        .triple-label {
+            font-size: 11px;
+            letter-spacing: .06em;
+        }
+
+        .triple-btn--on {
+            color: #fff;
+            background: rgba(255, 160, 200, .22);
+            border-color: rgba(255, 160, 200, .6);
+        }
+
+        .triple-btn--on .triple-icon { filter: none; }
+
+        .triple-btn--pop { animation: pop .45s cubic-bezier(.34, 1.56, .64, 1); }
+
+        @keyframes pop {
+            0%   { transform: scale(1); }
+            45%  { transform: scale(1.28); }
+            100% { transform: scale(1); }
+        }
+
+        #triple.triple--complete {
+            animation: pop .5s cubic-bezier(.34, 1.56, .64, 1);
+        }
+
+        /* 三连达成后飘落的图标 */
+        .triple-burst {
+            position: fixed;
+            inset: 0;
+            z-index: 9750;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .triple-burst span {
+            position: absolute;
+            top: -40px;
+            animation: burst-fall 2.6s ease-in forwards;
+        }
+
+        @keyframes burst-fall {
+            0%   { transform: translateY(0) rotate(0deg);       opacity: 0; }
+            12%  {                                              opacity: 1; }
+            100% { transform: translateY(105vh) rotate(320deg);  opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -702,6 +882,39 @@
 
         init(0);            // 切换粒子文字到正式祝福序列
         playMusic();
+        runShow();          // 安排弹幕、长信、三连的出场时机
+    }
+
+    // 整段演出的编排：祝福语 → 头像 → 弹幕 → 长信 → 三连
+    function runShow() {
+        var y = HB.featured(),
+            cfg = SITE.show || {};
+
+        if (!y) return;
+
+        // 弹幕：祝福语开场后不久放出，与粒子文字并行
+        if (y.danmaku && y.danmaku.length) {
+            setTimeout(function () {
+                Danmaku.start(y.danmaku);
+            }, cfg.danmakuDelay == null ? 6000 : cfg.danmakuDelay);
+        }
+
+        // 长信：整段祝福播完后浮出
+        var lines = y.letter;
+        if (lines && (typeof lines === 'string' ? lines.trim() : lines.length)) {
+            var delay = CONFIG.sequenceDuration() +
+                        (cfg.letterDelay == null ? 2500 : cfg.letterDelay);
+
+            setTimeout(function () {
+                Letter.show(lines, y.year, function () {
+                    // 信读完了，把三连按钮放出来
+                    if (cfg.triple !== false) Triple.mount();
+                });
+            }, delay);
+        } else if (cfg.triple !== false) {
+            // 没有信的年份，祝福播完直接显示三连
+            setTimeout(function () { Triple.mount(); }, CONFIG.sequenceDuration());
+        }
     }
 
     // 音乐播放失败不回滚动画——祝福照常进行，只提示音乐状态
@@ -1122,6 +1335,8 @@
 
 <script src="js/carousel.js"></script>
 <script src="js/timeline.js"></script>
+<script src="js/danmaku.js"></script>
+<script src="js/letter.js"></script>
 <script>
     // ---------- 相册与时光轴入口 ----------
 

@@ -129,7 +129,10 @@ S.UI = (function () {
   }
 
   function getValue(value) {
-    return value && value.split(' ')[1];
+    // 取第一个空格之后的全部内容，这样文件路径里含空格也不会被截断
+    if (!value) return value;
+    var i = value.indexOf(' ');
+    return i === -1 ? undefined : value.substring(i + 1);
   }
 
   function getAction(value) {
@@ -165,11 +168,17 @@ S.UI = (function () {
     var action,
         value,
         current;
-    // 大屏加快节奏，小屏留出更多阅读时间
-    if (window.innerWidth>500 && window.innerHeight>500){
+
+    // 每帧停留时长。小屏原本设 5s，但十几帧累积下来整段要一分半，
+    // 观众多半中途就退出了，所以收敛到 2.6s；大屏保持 2s。
+    if (window.innerWidth > 500 && window.innerHeight > 500) {
       delay1 = 1000;
       delay2 = 2000;
+    } else {
+      delay1 = 1200;
+      delay2 = 2600;
     }
+
     sequence = typeof(value) === 'object' ? value : sequence.concat(value.split('|'));
 
     timedAction(function (index) {
@@ -226,6 +235,13 @@ S.UI = (function () {
 
         case 'icon':
           S.ShapeBuilder.imageFile('font-awesome/' + value + '.png', function (obj) {
+            S.Shape.switchShape(obj);
+          });
+          break;
+
+        // 粒子聚成头像。value 可省略，默认取 SITE.avatar
+        case 'portrait':
+          S.ShapeBuilder.portrait(value || SITE.avatar, function (obj) {
             S.Shape.switchShape(obj);
           });
           break;
@@ -435,10 +451,11 @@ S.ShapeBuilder = (function () {
     shapeContext.textAlign = 'center';
   }
 
-  function processCanvas() {
-    var pixels = shapeContext.getImageData(0, 0, shapeCanvas.width, shapeCanvas.height).data;
+  // sampler 决定某个像素是否生成粒子。
+  // 默认看透明通道（原版行为）；传入自定义函数可改为按亮度等方式判断。
+  function processCanvas(sampler) {
+    var pixels = shapeContext.getImageData(0, 0, shapeCanvas.width, shapeCanvas.height).data,
         dots = [],
-        pixels,
         x = 0,
         y = 0,
         fx = shapeCanvas.width,
@@ -446,8 +463,10 @@ S.ShapeBuilder = (function () {
         w = 0,
         h = 0;
 
+    sampler = sampler || function (px, i) { return px[i + 3] > 0; };
+
     for (var p = 0; p < pixels.length; p += (4 * gap)) {
-      if (pixels[p + 3] > 0) {
+      if (sampler(pixels, p)) {
         dots.push(new S.Point({
           x: x,
           y: y
@@ -501,6 +520,66 @@ S.ShapeBuilder = (function () {
       image.onerror = function () {
         callback(S.ShapeBuilder.letter('What?'));
       }
+
+      image.src = url;
+    },
+
+    // 把一张图变成粒子人像。
+    //
+    // 与 imageFile 的区别：
+    //   - 按配置选择采样方式（透明通道 / 亮度）
+    //   - 图片等比缩放并居中，不像 imageFile 那样强制拉成正方形
+    //   - 亮度模式下取「暗部」为粒子，适合浅背景的头像
+    portrait: function (url, callback) {
+      var image = new Image(),
+          a = S.Drawing.getArea();
+
+      image.onload = function () {
+        // 目标尺寸：占屏幕短边的 62%，并对齐到 gap 网格
+        var target = Math.min(a.w, a.h) * 0.62,
+            ratio = Math.min(target / this.width, target / this.height),
+            dw = Math.max(gap, Math.round(this.width * ratio)),
+            dh = Math.max(gap, Math.round(this.height * ratio)),
+            dx = Math.round((shapeCanvas.width - dw) / 2),
+            dy = Math.round((shapeCanvas.height - dh) / 2);
+
+        shapeContext.clearRect(0, 0, shapeCanvas.width, shapeCanvas.height);
+        shapeContext.drawImage(this, dx, dy, dw, dh);
+
+        var mode = (typeof SITE !== 'undefined' && SITE.avatarSampling) || 'alpha',
+            sampler;
+
+        if (mode === 'dark' || mode === 'light') {
+          // 按亮度取样。阈值默认取中间值，可在配置里微调。
+          //   'dark'  取暗部 —— 适合浅背景 + 深色线条
+          //   'light' 取亮部 —— 适合深背景 + 浅色线条
+          var threshold = (SITE.avatarThreshold == null ? 128 : SITE.avatarThreshold),
+              wantLight = (mode === 'light');
+
+          sampler = function (px, i) {
+            if (px[i + 3] < 128) return false;   // 透明区域跳过
+            // 感知亮度（ITU-R BT.601）
+            var lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+            return wantLight ? lum > threshold : lum < threshold;
+          };
+        }
+
+        var shape = processCanvas(sampler);
+
+        // 亮度阈值不合适时可能一个点都取不到，退回文字避免白屏
+        if (!shape.dots.length) {
+          console.warn('[HB] 头像未采样到任何粒子，请调整 SITE.avatarThreshold');
+          callback(S.ShapeBuilder.letter('♥'));
+          return;
+        }
+
+        callback(shape);
+      };
+
+      image.onerror = function () {
+        console.warn('[HB] 头像加载失败：', url);
+        callback(S.ShapeBuilder.letter('♥'));
+      };
 
       image.src = url;
     },

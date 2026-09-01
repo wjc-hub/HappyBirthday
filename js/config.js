@@ -26,10 +26,15 @@ var SITE = {
   // 头像图片路径。用于粒子聚形（第二阶段功能）。
   avatar: 'images/avatar.png',
 
-  // 头像采样方式：
-  //   'alpha'      读透明通道 —— 需要抠好的透明 PNG，轮廓最精确
-  //   'brightness' 读亮度，暗部放粒子 —— 原图直接可用，剪影风格
-  avatarSampling: 'brightness',
+  // 头像采样方式 —— 决定图上哪些部分变成粒子：
+  //   'light' 取亮部  → 深色背景 + 浅色线条的图（当前头像是这种）
+  //   'dark'  取暗部  → 浅色背景 + 深色线条的图
+  //   'alpha' 取不透明区域 → 需要抠好的透明 PNG，轮廓最精确
+  avatarSampling: 'light',
+
+  // 亮度阈值 0~255。粒子太多就往中间调，太少就往反方向调。
+  // 可以在浏览器控制台看到实际采样到的粒子数。
+  avatarThreshold: 128,
 
   // ---------- 站点信息 ----------
 
@@ -84,6 +89,22 @@ var SITE = {
 
   photoPlaceholderTip: '把照片放进 images/<br>再填写 data/ 里对应年份的文件',
 
+  // ---------- 演出节奏 ----------
+
+  show: {
+    // 祝福语播完后，粒子聚成她的头像
+    portrait: true,
+
+    // 弹幕：祝福语开始后多久放出（毫秒）
+    danmakuDelay: 6000,
+
+    // 长信：整段祝福播完后多久浮出（毫秒）
+    letterDelay: 2500,
+
+    // 三连彩蛋按钮是否显示
+    triple: true,
+  },
+
   // ---------- 预留：粉丝留言 ----------
 
   // 第一阶段不做后端。若以后想加留言，可先填一个外部链接
@@ -115,6 +136,7 @@ var CONFIG = {
   countdown: 3,
   photos: [],
   photoInterval: 4000,
+  showPortrait: (SITE.show && SITE.show.portrait) !== false,
 };
 
 // 拼装粒子文字引擎所需的动作序列。
@@ -130,9 +152,30 @@ CONFIG.buildSequence = function (withCountdown) {
     parts.push(SITE.fill(m));
   });
 
+  // 祝福语之后聚成头像，这是整段演出的高潮
+  if (CONFIG.showPortrait && SITE.avatar) {
+    parts.push('#portrait ' + SITE.avatar);
+    // 头像多停留一帧，让她看清
+    parts.push('#portrait ' + SITE.avatar);
+  }
+
   (CONFIG.icons || []).forEach(function (icon) {
     parts.push('#icon ' + icon);
   });
 
   return parts.join('|');
+};
+
+// 整段祝福序列大约需要多久播完（毫秒），用于安排后续环节。
+// 数值必须与 js/index.js 里 performAction 设置的 delay1/delay2 保持一致。
+CONFIG.sequenceDuration = function () {
+  var big = window.innerWidth > 500 && window.innerHeight > 500,
+      perFrame = big ? 2000 : 2600,
+      perCount = big ? 1000 : 1200,
+      frames = 1                                       // 前导空帧
+             + (CONFIG.messages || []).length
+             + (CONFIG.showPortrait && SITE.avatar ? 2 : 0)
+             + (CONFIG.icons || []).length;
+
+  return frames * perFrame + (CONFIG.countdown || 0) * perCount;
 };
