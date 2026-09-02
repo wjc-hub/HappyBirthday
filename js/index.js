@@ -251,6 +251,17 @@ S.UI = (function () {
       value = getValue(current);
       lastShown = current;
 
+      // 这是最后一帧：等它播完后通知外部，用于开启结束后的自由切换
+      if (sequence.length === 0 && action !== 'countdown') {
+        var endToken = actionToken;
+
+        setTimeout(function () {
+          // 期间若又启动了新序列，这次通知作废
+          if (endToken !== actionToken) return;
+          if (typeof window.onSequenceEnd === 'function') window.onSequenceEnd();
+        }, frameDelay(current));
+      }
+
       switch (action) {
         case 'countdown':
           value = parseInt(value) || 10;
@@ -355,6 +366,34 @@ S.UI = (function () {
     // 否则用户在待机动画播完前点击，两段序列会被 concat 叠在一起
     reset: function () {
       reset();
+    },
+
+    // ---- 演出结束后的自由切换 ----
+    // 这两个方法会作废在跑的定时链，由用户点击直接驱动画面。
+
+    showPortrait: function () {
+      actionToken++;
+      clearTimeout(interval);
+      sequence = [];
+
+      S.ShapeBuilder.portrait(SITE.avatar, function (obj) {
+        S.Shape.switchShape(obj, false,
+                            { gradient: true, converge: true, breathe: true });
+
+        if (typeof window.onPortraitReveal === 'function') {
+          window.onPortraitReveal();
+        }
+      });
+    },
+
+    showIcon: function (name) {
+      actionToken++;
+      clearTimeout(interval);
+      sequence = [];
+
+      S.ShapeBuilder.imageFile('font-awesome/' + name + '.png', function (obj) {
+        S.Shape.switchShape(obj);
+      });
     }
   }
 }());

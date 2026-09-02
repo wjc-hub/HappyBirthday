@@ -118,7 +118,9 @@
 
         .fab {
             position: absolute;
-            z-index: 9400;
+            /* 必须高于引导层(9500)与倒数页(9500)：那两层都是铺满全屏的，
+               否则按钮看得见却点不到 —— 显隐本来就由 display 控制，不靠层级 */
+            z-index: 9550;
             display: none;              /* 引导层关闭后才显示 */
             align-items: center;
             gap: 8px;
@@ -980,11 +982,50 @@
                 Letter.show(lines, y.year, function () {
                     // 信读完了，把三连按钮放出来
                     if (cfg.triple !== false) Triple.mount();
+                }, function () {
+                    // 信纸收起、画面重新露出，这时才提示可以点击切换
+                    hintToggle();
                 });
             }, delay);
-        } else if (cfg.triple !== false) {
-            // 没有信的年份，祝福播完直接显示三连
-            setTimeout(function () { Triple.mount(); }, CONFIG.sequenceDuration());
+        } else {
+            if (cfg.triple !== false) {
+                setTimeout(function () { Triple.mount(); }, CONFIG.sequenceDuration());
+            }
+            // 没有信的年份，祝福播完就提示
+            setTimeout(hintToggle, CONFIG.sequenceDuration() + 1200);
+        }
+    }
+
+    // ---------- 结束后的自由切换：爱心 ↔ 头像 ----------
+
+    var canToggle = false,
+        showingPortrait = false,
+        hinted = false;
+
+    // 由 js/index.js 在整段序列播完后回调
+    window.onSequenceEnd = function () {
+        if (!started) return;      // 待机序列结束不算
+        canToggle = true;
+    };
+
+    function hintToggle() {
+        if (!canToggle || hinted) return;
+        hinted = true;
+        toast('👆 点一下画面，看看会变成什么', 5000);
+    }
+
+    function toggleShape() {
+        if (!canToggle) return;
+
+        showingPortrait = !showingPortrait;
+
+        if (showingPortrait) {
+            S.UI.showPortrait();
+        } else {
+            // 变回序列结尾那个图标
+            var y = HB.featured(),
+                icons = (y && y.icons) || ['heart'];
+            S.UI.showIcon(icons[icons.length - 1]);
         }
     }
 
@@ -1018,7 +1059,15 @@
 
 
     document.getElementById('intro').addEventListener('click', start);
-    document.querySelector('.canvas').addEventListener('click', start);
+
+    // 画面点击：演出开始前用来启动，结束后用来切换爱心 ↔ 头像
+    document.querySelector('.canvas').addEventListener('click', function () {
+        if (!started) {
+            start();
+        } else {
+            toggleShape();
+        }
+    });
 
     // ---------- 音乐开关 ----------
 

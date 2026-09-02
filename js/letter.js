@@ -21,6 +21,7 @@ var Letter = (function () {
       currentP = null,
       isOpen = false,
       onDone = null,
+      onClose = null,
       speed = 70;          // 每字毫秒数
 
   function build() {
@@ -167,6 +168,13 @@ var Letter = (function () {
     }
 
     if (root) root.classList.remove('letter--visible');
+
+    // 信纸收起、画面重新露出来，这时才适合提示别的交互
+    if (typeof onClose === 'function') {
+      var c = onClose;
+      onClose = null;
+      setTimeout(c, 700);      // 等淡出动画走完
+    }
   }
 
   function scrollToBottom() {
@@ -187,10 +195,13 @@ var Letter = (function () {
   }
 
   return {
-    show: function (letter, year, cb) {
+    // cb        打字完成（或中途跳过）时触发
+    // closeCb   信纸真正收起、画面重新露出时触发
+    show: function (letter, year, cb, closeCb) {
       lines = toLines(letter, year);
       if (!lines.length) {
         if (typeof cb === 'function') cb();
+        if (typeof closeCb === 'function') closeCb();
         return;
       }
 
@@ -201,6 +212,7 @@ var Letter = (function () {
       charIdx = 0;
       currentP = null;
       onDone = cb;
+      onClose = closeCb;
       isOpen = true;
 
       root.classList.remove('letter--done');
