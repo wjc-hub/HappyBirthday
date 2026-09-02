@@ -56,12 +56,21 @@ var SITE = {
   // ---------- 视觉主题 ----------
 
   theme: {
-    // 粒子文字配色，多个颜色时随机取用。只想单色就留一个。
+    // 祝福语粒子的配色，随机取用。只想单色就留一个。
     palette: [
       [255, 192, 203],  // 粉
       [255, 138, 174],  // 桃红
       [186, 200, 255],  // 淡蓝紫
       [255, 236, 179],  // 暖黄
+    ],
+
+    // 头像帧专属的渐变色带。粒子按它在头像上的高度取色，
+    // 从顶部第一个颜色过渡到底部最后一个，与祝福语的杂色形成对比。
+    // 至少两个颜色，可以放三四个做多段渐变。
+    portraitGradient: [
+      [255, 226, 150],  // 顶部 暖金
+      [255, 160, 190],  // 中部 樱粉
+      [150, 190, 255],  // 底部 天蓝
     ],
 
     // 背景星空
@@ -152,10 +161,13 @@ CONFIG.buildSequence = function (withCountdown) {
     parts.push(SITE.fill(m));
   });
 
-  // 祝福语之后聚成头像，这是整段演出的高潮
+  // 祝福语之后聚成头像，这是整段演出的高潮。
+  // 头像 → 昵称 → 头像，来回一次，强化「这是她」的印记。
+  // 昵称用 #accent 而非普通文字帧，让它沿用头像的渐变配色，
+  // 高潮段中途不会突然变回杂色。
   if (CONFIG.showPortrait && SITE.avatar) {
     parts.push('#portrait ' + SITE.avatar);
-    // 头像多停留一帧，让她看清
+    parts.push('#accent ' + SITE.name);
     parts.push('#portrait ' + SITE.avatar);
   }
 
@@ -167,15 +179,36 @@ CONFIG.buildSequence = function (withCountdown) {
 };
 
 // 整段祝福序列大约需要多久播完（毫秒），用于安排后续环节。
-// 数值必须与 js/index.js 里 performAction 设置的 delay1/delay2 保持一致。
+// 权重必须与 js/index.js 里 frameDelay 的规则保持一致，
+// 否则长信的出场时机会算错。
 CONFIG.sequenceDuration = function () {
   var big = window.innerWidth > 500 && window.innerHeight > 500,
-      perFrame = big ? 2000 : 2600,
+      base = big ? 2000 : 2600,
       perCount = big ? 1000 : 1200,
-      frames = 1                                       // 前导空帧
-             + (CONFIG.messages || []).length
-             + (CONFIG.showPortrait && SITE.avatar ? 2 : 0)
-             + (CONFIG.icons || []).length;
+      total = base * 0.6;                    // 前导空帧
 
-  return frames * perFrame + (CONFIG.countdown || 0) * perCount;
+  (CONFIG.messages || []).forEach(function (m) {
+    var s = SITE.fill(m),
+        len = s.replace(/\s/g, '').length,
+        w = 1;
+
+    if (/[！!…]$/.test(s)) w = 1.35;
+    else if (len <= 2) w = 0.78;
+    else if (len >= 5) w = 1.15;
+
+    total += base * w;
+  });
+
+  if (CONFIG.showPortrait && SITE.avatar) {
+    // 头像 → 昵称 → 头像
+    var nameLen = SITE.name.replace(/\s/g, '').length;
+    total += base * 2.1
+           + base * (nameLen <= 2 ? 0.78 : (nameLen >= 5 ? 1.15 : 1))
+           + base * 2.1;
+  }
+
+  total += (CONFIG.icons || []).length * base * 0.72;
+  total += (CONFIG.countdown || 0) * perCount;
+
+  return Math.round(total);
 };

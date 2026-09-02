@@ -140,28 +140,79 @@ S.UI = (function () {
     return value && value[0] === cmd && value.substring(1);
   }
 
+  // delay 可以是数字（固定间隔），也可以是函数 (index) => 毫秒，
+  // 后者用于让每帧停留时间不同，避免整段演出节奏平铺直叙。
   function timedAction(fn, delay, max, reverse) {
     clearInterval(interval);
+    clearTimeout(interval);
+
     currentAction = reverse ? max : 1;
     fn(currentAction);
 
+    var dynamic = (typeof delay === 'function');
+
     if (!max || (!reverse && currentAction < max) || (reverse && currentAction > 0)) {
-      interval = setInterval(function () {
+      if (!dynamic) {
+        interval = setInterval(function () {
+          currentAction = reverse ? currentAction - 1 : currentAction + 1;
+          fn(currentAction);
+
+          if ((!reverse && max && currentAction === max) || (reverse && currentAction === 0)) {
+            clearInterval(interval);
+          }
+        }, delay);
+        return;
+      }
+
+      // 动态间隔：用 setTimeout 链，每次单独计算下一帧的等待时间
+      var step = function () {
         currentAction = reverse ? currentAction - 1 : currentAction + 1;
         fn(currentAction);
 
         if ((!reverse && max && currentAction === max) || (reverse && currentAction === 0)) {
-          clearInterval(interval);
+          return;
         }
-      }, delay);
+
+        interval = setTimeout(step, delay(currentAction));
+      };
+
+      interval = setTimeout(step, delay(currentAction));
     }
   }
 
   function reset(destroy) {
     clearInterval(interval);
+    clearTimeout(interval);
     sequence = [];
     time = null;
     destroy && S.Shape.switchShape(S.ShapeBuilder.letter(''));
+  }
+
+  // 每帧该停留多久。让节奏有起伏，而不是所有帧一个速度。
+  //   头像帧      停最久，是整段的高潮
+  //   感叹句结尾  稍停，留出情绪
+  //   短句        快一点，形成推进感
+  function frameDelay(text) {
+    if (text == null) return delay2;
+
+    var s = String(text);
+
+    if (s.indexOf('#portrait') === 0) return delay2 * 2.1;
+    if (s.indexOf('#icon') === 0) return delay2 * 0.72;
+    if (s === '') return delay2 * 0.6;
+
+    // #accent 是带渐变配色的文字帧，按其文本内容判断
+    if (s.indexOf('#accent') === 0) s = getValue(s) || '';
+
+    // 带感叹/省略号的句子多停一会儿
+    if (/[！!…]$/.test(s)) return delay2 * 1.35;
+
+    // 短句推进得快些，长句给足阅读时间
+    var len = s.replace(/\s/g, '').length;
+    if (len <= 2) return delay2 * 0.78;
+    if (len >= 5) return delay2 * 1.15;
+
+    return delay2;
   }
 
   function performAction(value, start) {
@@ -181,10 +232,14 @@ S.UI = (function () {
 
     sequence = typeof(value) === 'object' ? value : sequence.concat(value.split('|'));
 
+    // 下一帧要等多久，取决于「刚显示出来的那一帧」是什么
+    var lastShown = null;
+
     timedAction(function (index) {
       current = sequence.shift();
       action = getAction(current);
       value = getValue(current);
+      lastShown = current;
 
       switch (action) {
         case 'countdown':
@@ -242,14 +297,30 @@ S.UI = (function () {
         // 粒子聚成头像。value 可省略，默认取 SITE.avatar
         case 'portrait':
           S.ShapeBuilder.portrait(value || SITE.avatar, function (obj) {
-            S.Shape.switchShape(obj);
+            S.Shape.switchShape(obj, false,
+                                { gradient: true, converge: true, breathe: true });
+
+            // 通知页面播放入场特效（白光 + 烟花齐放）
+            if (typeof window.onPortraitReveal === 'function') {
+              window.onPortraitReveal();
+            }
           });
+          break;
+
+        // 用头像那套渐变配色显示文字，但保持正常的切换速度。
+        // 夹在两个头像帧之间的昵称用它，避免高潮段中途变回杂色。
+        case 'accent':
+          S.Shape.switchShape(S.ShapeBuilder.letter(value || ''), false,
+                              { gradient: true, breathe: true });
           break;
 
         default:
           S.Shape.switchShape(S.ShapeBuilder.letter(current[0] === cmd ? 'What?' : current));
       }
-    }, delay2, sequence.length);
+    }, function () {
+      // 依刚显示的那帧决定停留多久，形成节奏起伏
+      return frameDelay(lastShown);
+    }, sequence.length);
   }
 
   function bindEvents() {
@@ -302,21 +373,65 @@ S.Color.prototype = {
 };
 
 
-// 从 CONFIG.theme.palette 里取粒子颜色；配置缺失时退回原来的粉色
+// 粒子取色。支持两种模式：
+//   随机取色    —— 祝福语用，从 palette 里随机挑，形成杂色感
+//   位置渐变    —— 头像用，按粒子的 y 坐标在渐变色带上插值，
+//                  让头像整体呈现从上到下的色彩过渡
 S.Palette = (function () {
-  var fallback = [[255, 192, 203]];
+  var fallback = [[255, 192, 203]],
+      mode = 'random',
+      gradient = null;
 
-  function colors() {
-    var p = (typeof CONFIG !== 'undefined' && CONFIG.theme && CONFIG.theme.palette);
+  function palette() {
+    var p = (typeof SITE !== 'undefined' && SITE.theme && SITE.theme.palette);
     return (p && p.length) ? p : fallback;
   }
 
-  return {
-    pick: function (a) {
-      var list = colors(),
-          c = list[Math.floor(Math.random() * list.length)];
+  function portraitGradient() {
+    var g = (typeof SITE !== 'undefined' && SITE.theme && SITE.theme.portraitGradient);
+    return (g && g.length >= 2) ? g : [[255, 214, 130], [255, 150, 200]];
+  }
 
-      return new S.Color(c[0], c[1], c[2], a);
+  // 在色带上按 t (0~1) 线性插值
+  function lerp(stops, t) {
+    t = Math.max(0, Math.min(1, t));
+
+    var span = 1 / (stops.length - 1),
+        i = Math.min(stops.length - 2, Math.floor(t / span)),
+        local = (t - i * span) / span,
+        a = stops[i],
+        b = stops[i + 1];
+
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * local),
+      Math.round(a[1] + (b[1] - a[1]) * local),
+      Math.round(a[2] + (b[2] - a[2]) * local)
+    ];
+  }
+
+  return {
+    // 切换取色模式。'portrait' 时按位置渐变，其余按随机。
+    setMode: function (m) {
+      mode = m;
+      gradient = (m === 'portrait') ? portraitGradient() : null;
+    },
+
+    getMode: function () {
+      return mode;
+    },
+
+    // y / height 用于渐变模式下定位；随机模式忽略
+    pick: function (alpha, y, height) {
+      var c;
+
+      if (mode === 'portrait' && gradient && height) {
+        c = lerp(gradient, y / height);
+      } else {
+        var list = palette();
+        c = list[Math.floor(Math.random() * list.length)];
+      }
+
+      return new S.Color(c[0], c[1], c[2], alpha);
     }
   };
 }());
@@ -336,6 +451,10 @@ S.Dot = function (x, y) {
 
   this.c = S.Palette.pick(this.p.a);
 
+  // 呼吸浮动：不改目标点，只在绘制时叠加一个正弦偏移，
+  // 这样不会与移动队列冲突。
+  this.br = null;
+
   this.t = this.clone();
   this.q = [];
 };
@@ -351,8 +470,48 @@ S.Dot.prototype = {
     });
   },
 
+  // 依据目标位置重新取色。切换形状时调用，
+  // 这样同一批粒子在不同帧里能呈现不同配色。
+  recolor: function (targetY, height) {
+    this.c = S.Palette.pick(this.p.a, targetY, height);
+  },
+
+  // 开启呼吸：记录锚点与随机相位，让每个粒子的节奏略有差异
+  breathe: function (ax, ay) {
+    this.br = {
+      ax: ax,
+      ay: ay,
+      phase: Math.random() * Math.PI * 2,
+      // 幅度小一点，太大就不像「呼吸」而像抖动
+      amp: 1.4 + Math.random() * 2.2,
+      speed: 0.02 + Math.random() * 0.015
+    };
+  },
+
+  stopBreathe: function () {
+    this.br = null;
+  },
+
   _draw: function () {
     this.c.a = this.p.a;
+
+    if (this.br) {
+      // 只在已经聚到锚点附近时才呼吸，避免入场途中就开始抖
+      var dx = this.p.x - this.br.ax,
+          dy = this.p.y - this.br.ay;
+
+      if (dx * dx + dy * dy < 400) {
+        this.br.phase += this.br.speed;
+
+        S.Drawing.drawCircle({
+          x: this.p.x + Math.sin(this.br.phase) * this.br.amp,
+          y: this.p.y + Math.cos(this.br.phase * 0.85) * this.br.amp,
+          z: this.p.z
+        }, this.c);
+        return;
+      }
+    }
+
     S.Drawing.drawCircle(this.p, this.c);
   },
 
@@ -658,14 +817,22 @@ S.Shape = (function () {
       }
     },
 
-    switchShape: function (n, fast) {
+    // opts.gradient  用头像那套渐变配色（按 y 坐标插值）
+    // opts.converge  粒子从画面外围向中心汇聚，慢速缓动
+    // opts.breathe   聚好后轻微呼吸浮动
+    switchShape: function (n, fast, opts) {
       var size,
           a = S.Drawing.getArea();
+
+      opts = opts || {};
 
       width = n.w;
       height = n.h;
 
       compensate();
+
+      // 切换配色模式，后面 recolor 会据此取色
+      S.Palette.setMode(opts.gradient ? 'portrait' : 'random');
 
       if (n.dots.length > dots.length) {
         size = n.dots.length - dots.length;
@@ -681,7 +848,22 @@ S.Shape = (function () {
         i = Math.floor(Math.random() * n.dots.length);
         dots[d].e = fast ? 0.25 : (dots[d].s ? 0.14 : 0.11);
 
-        if (dots[d].s) {
+        // 汇聚帧慢一点聚拢，让「成形」的过程看得清
+        if (opts.converge) dots[d].e = 0.055 + Math.random() * 0.03;
+
+        if (opts.converge) {
+          // 先把粒子甩到画面外围，再向中心汇聚
+          var ang = Math.random() * Math.PI * 2,
+              rad = Math.max(a.w, a.h) * (0.55 + Math.random() * 0.3);
+
+          dots[d].move(new S.Point({
+            x: a.w / 2 + Math.cos(ang) * rad,
+            y: a.h / 2 + Math.sin(ang) * rad,
+            z: Math.random() * 12 + 6,
+            a: 0.15 + Math.random() * 0.3,
+            h: 0
+          }));
+        } else if (dots[d].s) {
           dots[d].move(new S.Point({
             z: Math.random() * 20 + 10,
             a: Math.random(),
@@ -695,13 +877,24 @@ S.Shape = (function () {
         }
 
         dots[d].s = true;
+
+        // 依目标位置取色：渐变模式会按 y 坐标在色带上插值
+        dots[d].recolor(n.dots[i].y, n.h || 1);
+
         dots[d].move(new S.Point({
           x: n.dots[i].x + cx,
           y: n.dots[i].y + cy,
           a: 1,
-          z: 5,
+          z: opts.converge ? (4 + Math.random() * 3) : 5,
           h: 0
         }));
+
+        // 聚好之后轻微呼吸：在目标点附近来回小幅漂移
+        if (opts.breathe) {
+          dots[d].breathe(n.dots[i].x + cx, n.dots[i].y + cy);
+        } else {
+          dots[d].stopBreathe();
+        }
 
         n.dots = n.dots.slice(0, i).concat(n.dots.slice(i + 1));
         d++;
@@ -709,6 +902,7 @@ S.Shape = (function () {
 
       for (var i = d; i < dots.length; i++) {
         if (dots[i].s) {
+          dots[i].stopBreathe();
           dots[i].move(new S.Point({
             z: Math.random() * 20 + 10,
             a: Math.random(),

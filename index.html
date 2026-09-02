@@ -620,6 +620,7 @@
         }
 
         .letter-box {
+            position: relative;
             width: min(92vw, 560px);
             max-height: 76vh;
             display: flex;
@@ -631,6 +632,24 @@
             box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
             cursor: pointer;
         }
+
+        .letter-close {
+            position: absolute;
+            top: -16px;
+            right: -16px;
+            width: 34px;
+            height: 34px;
+            font-size: 20px;
+            line-height: 1;
+            color: #fff;
+            background: rgba(20, 10, 40, .9);
+            border: 1px solid rgba(255, 255, 255, .28);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .letter-close:hover { background: rgba(60, 30, 90, .95); }
 
         .letter-body {
             overflow-y: auto;
@@ -669,6 +688,8 @@
         .letter-actions {
             display: flex;
             justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
             margin-top: 14px;
         }
 
@@ -689,7 +710,32 @@
             color: #fff;
         }
 
-        #letter.letter--done .letter-skip::after { content: ' ✓'; }
+        /* 打完字后「跳过」改为「关闭」语义，并浮出主按钮 */
+        #letter.letter--done .letter-skip { display: none; }
+
+        .letter-done {
+            display: none;
+            padding: 9px 22px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #2b1055;
+            background: linear-gradient(135deg, #ffd9e8, #ffeec2);
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 6px 22px rgba(255, 170, 210, .35);
+            transition: transform .2s, box-shadow .2s;
+        }
+
+        .letter-done:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px rgba(255, 170, 210, .5);
+        }
+
+        #letter.letter--done .letter-done {
+            display: inline-block;
+            animation: pop .5s cubic-bezier(.34, 1.56, .64, 1);
+        }
 
         /* ---------- 三连彩蛋 ---------- */
 
@@ -775,6 +821,30 @@
             12%  {                                              opacity: 1; }
             100% { transform: translateY(105vh) rotate(320deg);  opacity: 0; }
         }
+
+        /* ---------- 头像入场：白光闪烁 ---------- */
+
+        #flash {
+            position: absolute;
+            inset: 0;
+            z-index: 9300;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(circle at 50% 50%,
+                        rgba(255, 255, 255, .9) 0%,
+                        rgba(255, 220, 240, .45) 35%,
+                        transparent 70%);
+        }
+
+        #flash.flash--on {
+            animation: flash-in 1.1s ease-out;
+        }
+
+        @keyframes flash-in {
+            0%   { opacity: 0;   transform: scale(.7); }
+            18%  { opacity: .95; transform: scale(1);  }
+            100% { opacity: 0;   transform: scale(1.5); }
+        }
     </style>
 </head>
 <body>
@@ -787,6 +857,7 @@
 <canvas id="canvas"></canvas>
 <canvas class="canvas"></canvas>
 <div id="vignette"></div>
+<div id="flash"></div>
 
 <div id="intro">
     <div id="intro-title"></div>
@@ -1328,6 +1399,32 @@
         cx=canvas.width/2;
         cy=canvas.height/2;
     });
+
+    // ---------- 头像入场特效 ----------
+    // 由 js/index.js 的 #portrait 指令回调触发：白光闪一下 + 烟花齐放。
+
+    window.onPortraitReveal = function () {
+        // 白光：重放动画需要先移除 class 并强制重排
+        var flash = document.getElementById('flash');
+        flash.classList.remove('flash--on');
+        void flash.offsetWidth;
+        flash.classList.add('flash--on');
+
+        // 烟花齐放：在观众上方一圈同时炸开，把视线托起来
+        var burst = isMobile ? 4 : 7;
+
+        for (var k = 0; k < burst; k++) {
+            (function (i) {
+                setTimeout(function () {
+                    var ang = (Math.PI * 2 / burst) * i + Math.random() * 0.5,
+                        rad = 22 + Math.random() * 26;
+
+                    // y 轴向上为负，-15 左右是画面偏上的位置
+                    splode(Math.cos(ang) * rad, -12 - Math.random() * 14, Math.sin(ang) * rad);
+                }, i * 130 + Math.random() * 90);
+            }(k));
+        }
+    };
 
     initVars();
     startFireworks();

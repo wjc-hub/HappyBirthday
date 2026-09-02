@@ -28,22 +28,49 @@ var Letter = (function () {
     root.id = 'letter';
     root.innerHTML =
       '<div class="letter-box">' +
+        '<button class="letter-close" type="button" aria-label="关闭">&times;</button>' +
         '<div class="letter-body"></div>' +
         '<div class="letter-actions">' +
           '<button class="letter-skip" type="button">跳过</button>' +
+          '<button class="letter-done" type="button">收下这封信</button>' +
         '</div>' +
       '</div>';
 
     body = root.querySelector('.letter-body');
 
+    // 「跳过」：还在打字时把全文瞬间显示；已打完则直接关闭
     root.querySelector('.letter-skip').addEventListener('click', function (e) {
       e.stopPropagation();
-      finishAll();
+      if (timer) finishAll();
+      else hide();
+    });
+
+    // 「收下这封信」：读完后关闭信纸，回到烟花与相册
+    root.querySelector('.letter-done').addEventListener('click', function (e) {
+      e.stopPropagation();
+      hide();
+    });
+
+    root.querySelector('.letter-close').addEventListener('click', function (e) {
+      e.stopPropagation();
+      hide();
     });
 
     // 点击信纸区域加速：把剩余的字瞬间打完当前段
     root.querySelector('.letter-box').addEventListener('click', function () {
       if (timer) finishLine();
+    });
+
+    // 点击信纸外的遮罩也能关闭（仅在已读完时，避免误触打断）
+    root.addEventListener('click', function (e) {
+      if (e.target === root && !timer) hide();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
+        timer ? finishAll() : hide();
+      }
     });
 
     document.body.appendChild(root);
@@ -126,6 +153,22 @@ var Letter = (function () {
     }
   }
 
+  function hide() {
+    clearTimeout(timer);
+    timer = null;
+    isOpen = false;
+
+    // 中途关闭时回调还没跑过，这里补上，
+    // 否则三连按钮永远不会出现
+    if (typeof onDone === 'function') {
+      var fn = onDone;
+      onDone = null;
+      fn();
+    }
+
+    if (root) root.classList.remove('letter--visible');
+  }
+
   function scrollToBottom() {
     body.scrollTop = body.scrollHeight;
   }
@@ -167,12 +210,7 @@ var Letter = (function () {
       timer = setTimeout(typeNext, 700);
     },
 
-    hide: function () {
-      clearTimeout(timer);
-      timer = null;
-      isOpen = false;
-      if (root) root.classList.remove('letter--visible');
-    },
+    hide: hide,
 
     isOpen: function () {
       return isOpen;
