@@ -21,20 +21,26 @@ var Danmaku = (function () {
       frames = 0,
       running = false,
       rafId = null,
-      loopQueue = true;
+      loopQueue = true,
+      opacity = 0,          // 当前透明度
+      targetOpacity = 0,    // 目标透明度，二者之间平滑过渡
+      userOff = false;      // 用户手动关闭了弹幕
 
-  var LANE_HEIGHT = 38,     // 轨道高度
-      TOP_MARGIN = 60,      // 顶部留白，避开静音按钮
-      BOTTOM_MARGIN = 90,   // 底部留白，避开相册按钮
-      FONT_SIZE = 22,
-      SPEED_MIN = 1.6,      // 像素/帧
-      SPEED_MAX = 2.8,
-      SPAWN_EVERY = 26;     // 每隔多少帧尝试发射一条
+  var LANE_HEIGHT = 34,     // 轨道高度
+      TOP_MARGIN = 56,      // 顶部留白，避开静音按钮
+      BOTTOM_MARGIN = 84,   // 底部留白，避开相册按钮
+      FONT_SIZE = 16,
+      SPEED_MIN = 1.4,      // 像素/帧
+      SPEED_MAX = 2.4,
+      SPAWN_EVERY = 26,     // 每隔多少帧尝试发射一条
+      BASE_ALPHA = 0.7,     // 整体透明度，压住存在感
+      FADE_STEP = 0.035;    // 淡入淡出速度（每帧）
 
-  // 弹幕颜色：以白色为主，少量彩色点缀，模仿真实弹幕池
+  // 弹幕配色。主体是柔和的粉紫暖调，与粒子文字同一色系，
+  // 不用纯白 —— 纯白在深色背景上太跳，会压过纤细的粒子点阵。
   var COLORS = [
-    '#ffffff', '#ffffff', '#ffffff', '#ffffff',
-    '#ffd7e5', '#ffe9a8', '#a8e6ff', '#c9ffb0', '#ffc4a8'
+    '#ffe3ef', '#ffe3ef', '#ffe3ef',
+    '#e8dcff', '#ffeccd', '#d6ecff', '#ffd9e6'
   ];
 
   function ensureCanvas() {
@@ -42,10 +48,12 @@ var Danmaku = (function () {
 
     canvas = document.createElement('canvas');
     canvas.id = 'danmaku';
-    // 放在粒子层之上、UI 之下；不接收点击
+    // 关键：放在粒子层(9000)之下、烟花(8888)之上。
+    // 弹幕原本是 9200 压在粒子上，把纤细的点阵完全盖住；
+    // 沉到下面后粒子始终可读，弹幕从点阵缝隙透出来形成层次。
     canvas.style.cssText =
       'position:absolute;top:0;left:0;width:100%;height:100%;' +
-      'z-index:9200;pointer-events:none';
+      'z-index:8950;pointer-events:none';
 
     document.body.appendChild(canvas);
     ctx = canvas.getContext('2d');
@@ -91,7 +99,9 @@ var Danmaku = (function () {
   function spawn(text) {
     var fontSize = FONT_SIZE;
 
-    ctx.font = 'bold ' + fontSize + 'px "PingFang SC", "Microsoft YaHei", sans-serif';
+    // 字体串必须与 tick() 里绘制时一致，否则测出的宽度不准，
+    // 轨道防追尾的时间计算会跟着错
+    ctx.font = fontSize + 'px "PingFang SC", "Microsoft YaHei", sans-serif';
 
     var width = ctx.measureText(text).width,
         speed = SPEED_MIN + Math.random() * (SPEED_MAX - SPEED_MIN),
@@ -121,8 +131,18 @@ var Danmaku = (function () {
     frames++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 淡入淡出：朝目标透明度逼近
+    if (opacity < targetOpacity) {
+      opacity = Math.min(targetOpacity, opacity + FADE_STEP);
+    } else if (opacity > targetOpacity) {
+      opacity = Math.max(targetOpacity, opacity - FADE_STEP);
+    }
+
+    // 淡出到全透明时停止发射新弹幕，让屏幕彻底干净
+    var muted = (targetOpacity === 0);
+
     // 发射
-    if (frames % SPAWN_EVERY === 0 && queue.length) {
+    if (!muted && frames % SPAWN_EVERY === 0 && queue.length) {
       var text = queue.shift();
       if (!spawn(text)) {
         queue.unshift(text);      // 轨道满了，放回队首下次再试
@@ -131,7 +151,8 @@ var Danmaku = (function () {
       }
     }
 
-    // 绘制并推进
+    // 完全透明时无需绘制，但仍要推进位置，
+    // 否则淡入回来时会看到一堆弹幕僵在原地
     for (var i = items.length - 1; i >= 0; i--) {
       var it = items[i];
 
@@ -142,18 +163,24 @@ var Danmaku = (function () {
         continue;
       }
 
-      ctx.font = 'bold ' + it.size + 'px "PingFang SC", "Microsoft YaHei", sans-serif';
+      if (opacity <= 0.01) continue;
+
+      ctx.globalAlpha = opacity;
+      ctx.font = it.size + 'px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textBaseline = 'alphabetic';
 
-      // 描边 + 填充：模仿 B 站弹幕的可读性处理
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(0,0,0,.55)';
+      // 描边比原来细得多、也淡得多：
+      // 这里的背景是深色夜空而非视频画面，不需要强描边保证可读性，
+      // 粗描边反而让弹幕显得笨重、压过粒子。
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(10,4,24,.4)';
       ctx.strokeText(it.text, it.x, it.y);
 
       ctx.fillStyle = it.color;
       ctx.fillText(it.text, it.x, it.y);
     }
 
+    ctx.globalAlpha = 1;
     rafId = requestAnimationFrame(tick);
   }
 
@@ -176,10 +203,33 @@ var Danmaku = (function () {
         queue[j] = tmp;
       }
 
+      // 用户手动关过就不要自作主张放出来
+      if (!userOff) targetOpacity = BASE_ALPHA;
+
       if (running) return;
       running = true;
       frames = 0;
       tick();
+    },
+
+    // 淡出：高潮段让路，但保留队列，之后能淡回来
+    fadeOut: function () {
+      targetOpacity = 0;
+    },
+
+    fadeIn: function () {
+      if (!userOff) targetOpacity = BASE_ALPHA;
+    },
+
+    // 用户手动开关。返回切换后是否可见。
+    toggle: function () {
+      userOff = !userOff;
+      targetOpacity = userOff ? 0 : BASE_ALPHA;
+      return !userOff;
+    },
+
+    isVisible: function () {
+      return !userOff;
     },
 
     stop: function () {
@@ -188,6 +238,7 @@ var Danmaku = (function () {
       rafId = null;
       items = [];
       queue = [];
+      opacity = targetOpacity = 0;
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
 

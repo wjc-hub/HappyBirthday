@@ -151,8 +151,15 @@
         }
 
         #btn-mute  { top: 20px;    right: 20px; }
+        #btn-danmaku { top: 68px;  right: 20px; }
         #btn-album { bottom: 24px; right: 20px; }
         #btn-timeline { bottom: 24px; left: 20px; }
+
+        /* 关闭状态：图标去色、整体压暗，一眼能看出是关的 */
+        .fab--off {
+            opacity: .5;
+            filter: grayscale(1);
+        }
 
         /* 倒数页模式下只显示音乐按钮，其余入口在页面内 */
         body.countdown-mode #btn-mute { display: inline-flex; }
@@ -877,6 +884,7 @@
 </div>
 
 <button class="fab" id="btn-mute" type="button">🔊 <span>音乐开</span></button>
+<button class="fab" id="btn-danmaku" type="button">💬 <span>弹幕开</span></button>
 <button class="fab" id="btn-album" type="button">📷 <span>回忆相册</span></button>
 <button class="fab" id="btn-timeline" type="button">🕰️ <span>时光轴</span></button>
 
@@ -961,7 +969,8 @@
     // 整段演出的编排：祝福语 → 头像 → 弹幕 → 长信 → 三连
     function runShow() {
         var y = HB.featured(),
-            cfg = SITE.show || {};
+            cfg = SITE.show || {},
+            tl = CONFIG.timeline();
 
         if (!y) return;
 
@@ -970,13 +979,22 @@
             setTimeout(function () {
                 Danmaku.start(y.danmaku);
             }, cfg.danmakuDelay == null ? 6000 : cfg.danmakuDelay);
+
+            // 头像高潮时让路：提前 2 秒淡出，高潮结束后淡回来。
+            // 淡出期间不再发射新弹幕，画面彻底干净。
+            if (tl.portraitStart != null) {
+                var lead = cfg.danmakuFadeLead == null ? 2000 : cfg.danmakuFadeLead;
+
+                setTimeout(function () { Danmaku.fadeOut(); },
+                           Math.max(0, tl.portraitStart - lead));
+                setTimeout(function () { Danmaku.fadeIn(); }, tl.portraitEnd);
+            }
         }
 
         // 长信：整段祝福播完后浮出
         var lines = y.letter;
         if (lines && (typeof lines === 'string' ? lines.trim() : lines.length)) {
-            var delay = CONFIG.sequenceDuration() +
-                        (cfg.letterDelay == null ? 2500 : cfg.letterDelay);
+            var delay = tl.total + (cfg.letterDelay == null ? 2500 : cfg.letterDelay);
 
             setTimeout(function () {
                 Letter.show(lines, y.year, function () {
@@ -989,10 +1007,10 @@
             }, delay);
         } else {
             if (cfg.triple !== false) {
-                setTimeout(function () { Triple.mount(); }, CONFIG.sequenceDuration());
+                setTimeout(function () { Triple.mount(); }, tl.total);
             }
             // 没有信的年份，祝福播完就提示
-            setTimeout(hintToggle, CONFIG.sequenceDuration() + 1200);
+            setTimeout(hintToggle, tl.total + 1200);
         }
     }
 
@@ -1489,7 +1507,8 @@
     (function () {
         var album = document.getElementById('btn-album'),
             tl = document.getElementById('btn-timeline'),
-            tlCd = document.getElementById('btn-timeline-cd');
+            tlCd = document.getElementById('btn-timeline-cd'),
+            dm = document.getElementById('btn-danmaku');
 
         if (Carousel.hasPhotos()) {
             album.addEventListener('click', function (e) {
@@ -1507,6 +1526,20 @@
 
         tl.addEventListener('click', openTimeline);
         tlCd.addEventListener('click', openTimeline);
+
+        // 弹幕开关。当年没配弹幕就不显示这个按钮。
+        var y = HB.featured();
+        if (y && y.danmaku && y.danmaku.length) {
+            dm.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var on = Danmaku.toggle();
+                this.firstChild.nodeValue = on ? '💬 ' : '🚫 ';
+                this.querySelector('span').textContent = on ? '弹幕开' : '弹幕关';
+                this.classList.toggle('fab--off', !on);
+            });
+        } else {
+            dm.remove();
+        }
     }());
 </script>
 

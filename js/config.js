@@ -107,13 +107,18 @@ var SITE = {
     // 头像每次停留多久（毫秒）。序列是 头像 → 昵称 → 头像，
     // 所以头像总露出时间约为这个值的两倍。
     // 觉得看不够就调大，比如 9000。
-    portraitHold: 10000,
+    portraitHold: 7000,
 
     // 夹在两个头像之间的昵称停留多久（毫秒）
-    accentHold: 3000,
+    accentHold: 2600,
 
     // 弹幕：祝福语开始后多久放出（毫秒）
     danmakuDelay: 6000,
+
+    // 头像高潮前多久让弹幕淡出（毫秒）。
+    // 弹幕会在头像登场前这么久开始淡出、高潮结束后淡回来，
+    // 保证最重要的那段画面干净。
+    danmakuFadeLead: 2000,
 
     // 长信：整段祝福播完后多久浮出（毫秒）
     letterDelay: 2500,
@@ -186,15 +191,21 @@ CONFIG.buildSequence = function (withCountdown) {
   return parts.join('|');
 };
 
-// 整段祝福序列大约需要多久播完（毫秒），用于安排后续环节。
-// 权重必须与 js/index.js 里 frameDelay 的规则保持一致，
-// 否则长信的出场时机会算错。
-CONFIG.sequenceDuration = function () {
+// 逐帧累加时间轴。权重必须与 js/index.js 里 frameDelay 的规则一致，
+// 否则后续环节（弹幕淡出、长信浮出）的时机会算错。
+//
+// 返回 { total, portraitStart, portraitEnd }，单位毫秒。
+CONFIG.timeline = function () {
   var big = window.innerWidth > 500 && window.innerHeight > 500,
       base = big ? 2000 : 2600,
       perCount = big ? 1000 : 1200,
       show = SITE.show || {},
-      total = base * 0.6;                    // 前导空帧
+      t = 0,
+      portraitStart = null,
+      portraitEnd = null;
+
+  t += base * 0.6;                          // 前导空帧
+  t += (CONFIG.countdown || 0) * perCount;  // 倒数
 
   (CONFIG.messages || []).forEach(function (m) {
     var s = SITE.fill(m),
@@ -205,19 +216,28 @@ CONFIG.sequenceDuration = function () {
     else if (len <= 2) w = 0.78;
     else if (len >= 5) w = 1.15;
 
-    total += base * w;
+    t += base * w;
   });
 
   if (CONFIG.showPortrait && SITE.avatar) {
-    // 头像 → 昵称 → 头像，前后两个头像用绝对时长
     var hold = (show.portraitHold == null ? 7000 : show.portraitHold),
         accent = (show.accentHold == null ? 2600 : show.accentHold);
 
-    total += hold * 2 + accent;
+    portraitStart = t;                      // 第一个头像帧出现的时刻
+    t += hold * 2 + accent;                 // 头像 → 昵称 → 头像
+    portraitEnd = t;                        // 高潮段结束
   }
 
-  total += (CONFIG.icons || []).length * base * 0.72;
-  total += (CONFIG.countdown || 0) * perCount;
+  t += (CONFIG.icons || []).length * base * 0.72;
 
-  return Math.round(total);
+  return {
+    total: Math.round(t),
+    portraitStart: portraitStart === null ? null : Math.round(portraitStart),
+    portraitEnd: portraitEnd === null ? null : Math.round(portraitEnd)
+  };
+};
+
+// 整段祝福序列大约需要多久播完（毫秒）
+CONFIG.sequenceDuration = function () {
+  return CONFIG.timeline().total;
 };
