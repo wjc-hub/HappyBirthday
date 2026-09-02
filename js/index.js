@@ -114,6 +114,7 @@ S.UI = (function () {
   var delay1 = 3000,
       delay2 = 5000,
       interval,
+      actionToken = 0,      // 定时器链的代次，防止嵌套调用互相覆盖
       isTouch = false,
       currentAction,
       time,
@@ -140,69 +141,78 @@ S.UI = (function () {
     return value && value[0] === cmd && value.substring(1);
   }
 
-  // delay 可以是数字（固定间隔），也可以是函数 (index) => 毫秒，
+  // delay 可以是数字（固定间隔），也可以是函数 () => 毫秒，
   // 后者用于让每帧停留时间不同，避免整段演出节奏平铺直叙。
+  //
+  // 注意：fn 内部可能再次调用 timedAction（倒数指令就是如此）。
+  // 过去这里用一个共享的 interval 句柄，嵌套调用会互相覆盖，
+  // 导致旧链无法被清除、和新链并行推进 —— 表现为倒数数字一直乱跳。
+  // 现在用代次令牌：每次调用令牌 +1，只有持有最新令牌的链能继续。
   function timedAction(fn, delay, max, reverse) {
-    clearInterval(interval);
     clearTimeout(interval);
 
-    currentAction = reverse ? max : 1;
-    fn(currentAction);
+    var token = ++actionToken,
+        dynamic = (typeof delay === 'function'),
+        n = reverse ? max : 1;
 
-    var dynamic = (typeof delay === 'function');
-
-    if (!max || (!reverse && currentAction < max) || (reverse && currentAction > 0)) {
-      if (!dynamic) {
-        interval = setInterval(function () {
-          currentAction = reverse ? currentAction - 1 : currentAction + 1;
-          fn(currentAction);
-
-          if ((!reverse && max && currentAction === max) || (reverse && currentAction === 0)) {
-            clearInterval(interval);
-          }
-        }, delay);
-        return;
-      }
-
-      // 动态间隔：用 setTimeout 链，每次单独计算下一帧的等待时间
-      var step = function () {
-        currentAction = reverse ? currentAction - 1 : currentAction + 1;
-        fn(currentAction);
-
-        if ((!reverse && max && currentAction === max) || (reverse && currentAction === 0)) {
-          return;
-        }
-
-        interval = setTimeout(step, delay(currentAction));
-      };
-
-      interval = setTimeout(step, delay(currentAction));
+    function wait() {
+      return dynamic ? delay(n) : delay;
     }
+
+    function finished() {
+      return (!reverse && max && n === max) || (reverse && n === 0);
+    }
+
+    function advance() {
+      if (token !== actionToken) return;    // 已被新链取代
+
+      n = reverse ? n - 1 : n + 1;
+      currentAction = n;
+      fn(n);
+
+      // fn 里可能启动了新链，此时本链必须就此打住
+      if (token !== actionToken || finished()) return;
+
+      interval = setTimeout(advance, wait());
+    }
+
+    currentAction = n;
+    fn(n);
+
+    if (token !== actionToken || finished()) return;
+
+    interval = setTimeout(advance, wait());
   }
 
   function reset(destroy) {
-    clearInterval(interval);
     clearTimeout(interval);
+    actionToken++;              // 作废所有在跑的链
     sequence = [];
     time = null;
     destroy && S.Shape.switchShape(S.ShapeBuilder.letter(''));
   }
 
   // 每帧该停留多久。让节奏有起伏，而不是所有帧一个速度。
-  //   头像帧      停最久，是整段的高潮
+  //   头像帧      停最久，是整段的高潮，时长由 SITE.show.portraitHold 指定
   //   感叹句结尾  稍停，留出情绪
   //   短句        快一点，形成推进感
   function frameDelay(text) {
     if (text == null) return delay2;
 
-    var s = String(text);
+    var s = String(text),
+        show = (typeof SITE !== 'undefined' && SITE.show) || {};
 
-    if (s.indexOf('#portrait') === 0) return delay2 * 2.1;
+    // 头像与昵称用绝对时长，方便直接调；其余按 delay2 的倍率
+    if (s.indexOf('#portrait') === 0) {
+      return show.portraitHold == null ? 7000 : show.portraitHold;
+    }
+
+    if (s.indexOf('#accent') === 0) {
+      return show.accentHold == null ? 2600 : show.accentHold;
+    }
+
     if (s.indexOf('#icon') === 0) return delay2 * 0.72;
     if (s === '') return delay2 * 0.6;
-
-    // #accent 是带渐变配色的文字帧，按其文本内容判断
-    if (s.indexOf('#accent') === 0) s = getValue(s) || '';
 
     // 带感叹/省略号的句子多停一会儿
     if (/[！!…]$/.test(s)) return delay2 * 1.35;

@@ -104,6 +104,14 @@ var SITE = {
     // 祝福语播完后，粒子聚成她的头像
     portrait: true,
 
+    // 头像每次停留多久（毫秒）。序列是 头像 → 昵称 → 头像，
+    // 所以头像总露出时间约为这个值的两倍。
+    // 觉得看不够就调大，比如 9000。
+    portraitHold: 7000,
+
+    // 夹在两个头像之间的昵称停留多久（毫秒）
+    accentHold: 2600,
+
     // 弹幕：祝福语开始后多久放出（毫秒）
     danmakuDelay: 6000,
 
@@ -185,6 +193,7 @@ CONFIG.sequenceDuration = function () {
   var big = window.innerWidth > 500 && window.innerHeight > 500,
       base = big ? 2000 : 2600,
       perCount = big ? 1000 : 1200,
+      show = SITE.show || {},
       total = base * 0.6;                    // 前导空帧
 
   (CONFIG.messages || []).forEach(function (m) {
@@ -200,11 +209,11 @@ CONFIG.sequenceDuration = function () {
   });
 
   if (CONFIG.showPortrait && SITE.avatar) {
-    // 头像 → 昵称 → 头像
-    var nameLen = SITE.name.replace(/\s/g, '').length;
-    total += base * 2.1
-           + base * (nameLen <= 2 ? 0.78 : (nameLen >= 5 ? 1.15 : 1))
-           + base * 2.1;
+    // 头像 → 昵称 → 头像，前后两个头像用绝对时长
+    var hold = (show.portraitHold == null ? 7000 : show.portraitHold),
+        accent = (show.accentHold == null ? 2600 : show.accentHold);
+
+    total += hold * 2 + accent;
   }
 
   total += (CONFIG.icons || []).length * base * 0.72;
