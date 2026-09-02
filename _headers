@@ -1,0 +1,35 @@
+# Cloudflare Pages 缓存策略
+#
+# 为什么需要这个文件：
+# 每年更新时会新增 data/YYYY.js 并在 index.html 里加一行 script。
+# 如果 index.html 被浏览器长期缓存，访客就看不到新年份的内容 ——
+# 而且他们不会想到要硬刷新。所以入口和逻辑文件必须每次都回源校验。
+
+# 入口页：每次都向服务器确认是否有更新
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+# 逻辑与内容：改动频繁，同样每次校验。
+# no-cache 不等于不缓存 —— 文件没变时服务器回 304，几乎不耗流量。
+/js/*
+  Cache-Control: no-cache
+
+/data/*
+  Cache-Control: no-cache
+
+# 静态素材：内容固定，可以长期缓存。
+# 换图时改文件名即可绕过缓存。
+/images/*
+  Cache-Control: public, max-age=604800
+
+/NYE/*
+  Cache-Control: public, max-age=2592000
+
+/font-awesome/*
+  Cache-Control: public, max-age=2592000
+
+/happy-birthday.mp3
+  Cache-Control: public, max-age=2592000

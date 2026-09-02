@@ -1500,8 +1500,12 @@
         document.body.classList.add('countdown-mode');
     }());
 
-    // 粒子文字引擎需要 DOM 就绪后再初始化待机画面
+    // 粒子文字引擎需要 DOM 就绪后再初始化待机画面。
+    //
+    // 若用户抢在 load 之前就点了（图片没加载完时很常见），
+    // 演出已经开始，这时再 init(1) 会把它重置回待机图标 —— 必须跳过。
     window.addEventListener('load', function () {
+        if (started) return;
         init(1);
     });
 </script>
