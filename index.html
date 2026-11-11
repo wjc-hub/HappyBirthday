@@ -20,9 +20,9 @@
            ------------------------------------------------------------ */
 
         :root {
-            --ink-900: #0B0909;   /* 页面底 */
-            --ink-800: #141011;   /* 卡片底 */
-            --ink-700: #1F191A;   /* 分隔 / 描边 */
+            --ink-900: #1A1211;   /* 页面底 */
+            --ink-800: #2A1C19;   /* 卡片底 */
+            --ink-700: #3B2924;   /* 分隔 / 描边 */
 
             --red-600: #C42B20;   /* 按下 / 描边 */
             --red-500: #E23A2E;   /* 主色 */
@@ -55,15 +55,26 @@
                 repeating-linear-gradient(to bottom,
                     rgba(255, 244, 230, .014) 0 1px,
                     transparent 1px 4px),
-                radial-gradient(ellipse 36% 50% at 58% -6%,
-                    rgba(255, 196, 130, .26), rgba(255, 165, 61, .07) 46%, transparent 72%),
-                radial-gradient(ellipse 30% 40% at 30% -4%,
-                    rgba(255, 176, 96, .10), transparent 70%),
-                radial-gradient(ellipse 92% 48% at 50% 108%,
-                    rgba(226, 58, 46, .22), transparent 70%),
-                radial-gradient(ellipse at 50% 45%, #171112 0%, #0B0909 58%, #070505 100%);
-            background-size: 140px 140px, auto, auto, auto, auto, auto;
-            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+                /* 顶光：从画面上方洒下来，居中。没有形状的光只有对称才立得住，
+                   偏在一角就成一块污渍。 */
+                radial-gradient(ellipse 68% 44% at 50% -14%,
+                    rgba(255, 186, 120, .36), rgba(255, 150, 80, .11) 48%, transparent 74%),
+                /* 左右各一点侧光，把画面横向撑开 */
+                radial-gradient(ellipse 28% 52% at 5% 42%,
+                    rgba(186, 62, 50, .12), transparent 72%),
+                radial-gradient(ellipse 30% 56% at 96% 46%,
+                    rgba(120, 52, 104, .16), transparent 72%),
+                /* 底部辣椒红余温 */
+                radial-gradient(ellipse 78% 34% at 50% 104%,
+                    rgba(226, 58, 46, .30), transparent 72%),
+                /* 内容区的光池：让中间那块"被照亮"，
+                   否则大屏上文字是浮在虚空里 */
+                radial-gradient(ellipse 46% 34% at 50% 46%,
+                    rgba(226, 58, 46, .20), rgba(160, 44, 36, .07) 52%, transparent 76%),
+                /* 基底：中间压住，让红色数字和粒子自己发光 */
+                radial-gradient(ellipse at 50% 40%, #261A17 0%, #1B1412 54%, #110C0B 100%);
+            background-size: 140px 140px, auto, auto, auto, auto, auto, auto, auto;
+            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
             font-family: var(--sans);
             -webkit-tap-highlight-color: transparent;
         }
@@ -120,8 +131,8 @@
             cursor: pointer;
             background:
                 radial-gradient(ellipse 44% 38% at 50% 50%,
-                    rgba(9, 7, 7, .88) 0%, rgba(9, 7, 7, .68) 58%, rgba(9, 7, 7, .52) 100%),
-                rgba(9, 7, 7, .55);
+                    rgba(20, 13, 12, .88) 0%, rgba(20, 13, 12, .68) 58%, rgba(20, 13, 12, .52) 100%),
+                rgba(20, 13, 12, .55);
             backdrop-filter: blur(2px);
             -webkit-backdrop-filter: blur(2px);
             transition: opacity .8s ease;
@@ -149,7 +160,7 @@
             color: rgba(255, 244, 230, .82);
             letter-spacing: .26em;
             padding: 10px 22px;
-            background: rgba(9, 7, 7, .5);
+            background: rgba(20, 13, 12, .5);
             border: 1px solid rgba(255, 244, 230, .3);
             border-radius: 4px;
             animation: breathe 3.4s ease-in-out infinite;
@@ -269,7 +280,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(9, 7, 7, .88);
+            background: rgba(20, 13, 12, .88);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             opacity: 0;
@@ -557,7 +568,16 @@
             position: fixed;
             inset: 0;
             z-index: 9850;
-            background: rgba(9, 7, 7, .995);
+            background:
+                /* 面板自己的两层光：顶部一盏、底部一层红，
+                   让它看起来是"这个房间里的一个暗处"，而不是一块黑纸 */
+                radial-gradient(ellipse 62% 44% at 50% -10%,
+                    rgba(255, 172, 100, .13), transparent 66%),
+                radial-gradient(ellipse 40% 60% at 104% 56%,
+                    rgba(126, 48, 100, .10), transparent 70%),
+                radial-gradient(ellipse 74% 46% at 50% 108%,
+                    rgba(226, 58, 46, .14), transparent 72%),
+                rgba(20, 13, 12, .975);
             opacity: 0;
             pointer-events: none;
             transition: opacity .4s ease;
@@ -855,7 +875,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(9, 7, 7, .995);
+            background:
+                /* 面板自己的两层光：顶部一盏、底部一层红，
+                   让它看起来是"这个房间里的一个暗处"，而不是一块黑纸 */
+                radial-gradient(ellipse 62% 44% at 50% -10%,
+                    rgba(255, 172, 100, .13), transparent 66%),
+                radial-gradient(ellipse 40% 60% at 104% 56%,
+                    rgba(126, 48, 100, .10), transparent 70%),
+                radial-gradient(ellipse 74% 46% at 50% 108%,
+                    rgba(226, 58, 46, .14), transparent 72%),
+                rgba(20, 13, 12, .975);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             opacity: 0;
@@ -1112,7 +1141,16 @@
                实测 61fps 直接掉到 24fps。而遮罩本身已经接近不透明，
                模糊出来的内容几乎为零，纯亏。去掉，把遮罩加深补回层次。
                （DESIGN §6 那条「运动 canvas 上加 blur 是灾难」，这里是同一个坑。） */
-            background: rgba(9, 7, 7, .955);
+            background:
+                /* 面板自己的两层光：顶部一盏、底部一层红，
+                   让它看起来是"这个房间里的一个暗处"，而不是一块黑纸 */
+                radial-gradient(ellipse 62% 44% at 50% -10%,
+                    rgba(255, 172, 100, .13), transparent 66%),
+                radial-gradient(ellipse 40% 60% at 104% 56%,
+                    rgba(126, 48, 100, .10), transparent 70%),
+                radial-gradient(ellipse 74% 46% at 50% 108%,
+                    rgba(226, 58, 46, .14), transparent 72%),
+                rgba(20, 13, 12, .975);
             opacity: 0;
             pointer-events: none;
             transition: opacity .7s ease;
@@ -1504,7 +1542,7 @@
 <body>
 
 <audio loop="loop" id="audios" preload="metadata" playsinline webkit-playsinline>
-    <source src="happy-birthday.mp3" type="audio/mpeg"/>
+    <source src="bgm-pianai.mp3" type="audio/mpeg"/>
 </audio>
 
 <canvas id="stars"></canvas>
