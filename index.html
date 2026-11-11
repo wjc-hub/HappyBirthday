@@ -226,7 +226,9 @@
             cursor: pointer;
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            transition: background .25s, border-color .25s, color .25s, transform .25s;
+            /* opacity 一起过渡：开关一按是"慢慢暗下去"，不是啪地跳成半透明 */
+            transition: background .25s, border-color .25s, color .25s, transform .25s,
+                        opacity .3s ease;
         }
 
         /* 图标用等宽字形，不用 emoji：emoji 一带颜色就变成"礼物模板"了 */
@@ -262,11 +264,23 @@
         #btn-timeline { bottom: 24px; left: 20px; }
         #btn-people { bottom: 78px; left: 20px; }
 
-        /* 关闭状态：图标去色、整体压暗，一眼能看出是关的 */
+        /* 关闭状态：整体压暗一档，靠 .fab 上的 opacity 过渡渐变过去，不是硬跳。
+           不用 grayscale —— 这两个按钮静止时本来就是米白，去色等于没去，
+           反而会让 backdrop-filter 的毛玻璃在部分浏览器上失效。
+           悬停时回一点亮度，说明"还点得动、点一下能开回来"。 */
         .fab--off {
-            opacity: .5;
-            filter: grayscale(1);
+            opacity: .52;
         }
+
+        .fab--off:hover {
+            opacity: .84;
+            color: rgba(255, 244, 230, .9);
+            background: rgba(255, 244, 230, .07);
+            border-color: rgba(255, 244, 230, .28);
+        }
+
+        /* 关着的时候别再变成红色 —— 红色是"点一下会关掉"的信号 */
+        .fab--off:hover .fab-ico { opacity: .9; color: inherit; }
 
         /* 倒数页模式下只显示音乐按钮，其余入口在页面内 */
         body.countdown-mode #btn-mute { display: inline-flex; }
@@ -1792,10 +1806,12 @@
 
     // ---------- 音乐开关 ----------
 
+    // 音乐开关和弹幕开关共用一套状态表现：文字换掉、按钮压暗一档（.fab--off）。
+    // 图标是 <i class="fab-ico">，不用 emoji —— emoji 自带颜色，一出现就像礼物图标。
     function syncMuteButton(off) {
         var btn = document.getElementById('btn-mute');
-        btn.firstChild.nodeValue = off ? '🔇 ' : '🔊 ';
         btn.querySelector('span').textContent = off ? '音乐关' : '音乐开';
+        btn.classList.toggle('fab--off', !!off);
     }
 
     document.getElementById('btn-mute').addEventListener('click', function (e) {
@@ -2304,7 +2320,6 @@
             dm.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var on = Danmaku.toggle();
-                this.firstChild.nodeValue = on ? '💬 ' : '🚫 ';
                 this.querySelector('span').textContent = on ? '弹幕开' : '弹幕关';
                 this.classList.toggle('fab--off', !on);
             });

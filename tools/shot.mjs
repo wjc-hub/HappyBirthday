@@ -9,6 +9,10 @@
 //     --url=<地址>        默认 http://127.0.0.1:8765/index.html?celebrate&auto
 //     --wait=<毫秒>       截图前等待的真实时间，默认 4000
 //     --eval=<JS>         等待前执行的表达式，例如 "S.UI.showPortrait()"
+//     --evalDelay=<毫秒>  eval 前额外等一会儿，默认 0
+//                         本机 loadEventFired 有时早于真实导航完成，此时
+//                         eval 会落在 about:blank 上（document 里什么都没有），
+//                         改成"过 1500 毫秒再 eval"即可绕开
 //     --clip=x,y,w,h      只截取该矩形，便于放大看细节
 //     --size=<宽x高>      视口尺寸，默认 1440x900
 
@@ -34,6 +38,7 @@ const opt = (name, dflt) => {
 const url = opt('url', 'http://127.0.0.1:8765/index.html?celebrate&auto');
 const wait = Number(opt('wait', '4000'));
 const evalJs = opt('eval', '');
+const evalDelay = Number(opt('evalDelay', '0'));
 const clip = opt('clip', '');
 const [vw, vh] = opt('size', '1440x900').split('x').map(Number);
 
@@ -127,7 +132,17 @@ try {
   });
 
   if (evalJs) {
-    const r = await send('Runtime.evaluate', { expression: evalJs, awaitPromise: true });
+    if (evalDelay > 0) await sleep(evalDelay);
+    const r = await send('Runtime.evaluate', {
+      expression: evalJs,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    // 把返回值打出来：eval 落在错误上下文时（例如 about:blank），
+    // 只看"报错/没报错"分不清，能读到 document.URL 才查得下去
+    if (r.result && r.result.value !== undefined) {
+      console.log(`eval → ${JSON.stringify(r.result.value)}`);
+    }
     if (r.exceptionDetails) {
       errors.push(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
     }

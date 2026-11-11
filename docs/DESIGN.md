@@ -689,3 +689,29 @@ fixed 元素在 `left: 50%` 之后 shrink-to-fit 的可用宽度只剩半屏（2
 顺带验了一个怀疑：加 `background-blend-mode` 会不会掉帧。同条件对照
 （改前 42~48fps / 改后 42~45fps）**没有差异** —— 之前看到的 61fps 是机器空闲时的读数，
 不是基线。**测帧率必须在同一台机器的同一状态下对照测，不能跨时间比数字。**
+
+### 16.5 开关的状态语言（音乐 / 弹幕统一）
+
+两个开关按钮（`#btn-mute`、`#btn-danmaku`）表达"关"的方式必须完全一致，否则
+会出现"弹幕按了看得出关了、音乐按了像没反应"的错觉。规则：
+
+| 状态 | 文字 | 类 | 视觉 |
+|---|---|---|---|
+| 开 | 音乐开 / 弹幕开 | `fab` | 正常亮度，悬停变红 |
+| 关 | 音乐关 / 弹幕关 | `fab fab--off` | `opacity: .52`，悬停回到 `.84` 但仍不泛红 |
+
+- **淡化要过渡**：`.fab` 的 `transition` 里带 `opacity .3s ease`，按下是"暗下去"
+  而不是硬跳。原来的 `opacity` 不在过渡列表里，弹幕按钮一直是啪一下变暗。
+- **不要用 `grayscale`**：这两个按钮静止时本来就是米白（`rgba(255,244,230,.76)`），
+  去色几乎看不出来，却会让同元素上的 `backdrop-filter` 在部分浏览器上失效。
+  真正传达"关"的是亮度差。
+- **图标不要靠 JS 换 emoji**：旧代码 `btn.firstChild.nodeValue = '🔇 '` 是无效写法
+  —— `firstChild` 是 `<i class="fab-ico">` 元素，给元素赋 `nodeValue` 不产生任何效果。
+  图标固定用等宽字形 `♪` / `≋`，状态只由文字 + 压暗表达。已删掉这两行死代码。
+
+验证方式（无头）：`syncMuteButton(true)` 后应得 `fab fab--off / 音乐关`；
+点 `#btn-danmaku` 一次应得 `fab fab--off / 弹幕关`，再点回 `fab / 弹幕开`。
+
+> `tools/shot.mjs` 加了 `--evalDelay`：本机 `Page.loadEventFired` 有时早于真实导航完成，
+> `--eval` 会落在 `about:blank` 上（表现为 `getElementById` 拿到 null，或截图全白）。
+> 传 `--evalDelay=1500` 即可绕开；`--eval` 的返回值现在也会打印出来，方便判断上下文。
