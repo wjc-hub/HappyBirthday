@@ -1099,14 +1099,20 @@
         #letter {
             position: fixed;
             inset: 0;
-            z-index: 9600;
+            /* 9600 → 9760：必须压在 #toast(9700) 上面。
+               手机上「点击右上角的按钮可以开启音乐」那条提示会正好落在信上，
+               之前 z-index 比信高，直接盖住正文。 */
+            z-index: 9760;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 24px;
-            background: rgba(9, 7, 7, .82);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            /* 这里原本有 backdrop-filter: blur(6px)。
+               它让每一帧都把底下正在播放的粒子/烟花整屏重算一次模糊 ——
+               实测 61fps 直接掉到 24fps。而遮罩本身已经接近不透明，
+               模糊出来的内容几乎为零，纯亏。去掉，把遮罩加深补回层次。
+               （DESIGN §6 那条「运动 canvas 上加 blur 是灾难」，这里是同一个坑。） */
+            background: rgba(9, 7, 7, .955);
             opacity: 0;
             pointer-events: none;
             transition: opacity .7s ease;
@@ -1119,8 +1125,12 @@
 
         .letter-box {
             position: relative;
-            width: min(92vw, 560px);
-            max-height: 76vh;
+            /* 560 → 620：可用行宽 500 → 560，约 31 字/行。
+               中文每字 ≈ 字号宽，560 的箱子一行只放得下 27 字，
+               而信里最长的句子是 30 字 —— 会折成"最后两个字掉到下一行"，
+               一句一行的手写感就没了。宽一点更耐读。 */
+            width: min(92vw, 620px);
+            max-height: 86vh;
             display: flex;
             flex-direction: column;
             padding: 32px 30px 20px;
@@ -1154,16 +1164,26 @@
         .letter-body {
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            /* flex 子项默认 min-height:auto，会拒绝收缩 —— 不写这两行，
+               内容溢出 letter-box，最后一行被按钮压成半截字。 */
+            flex: 1 1 auto;
+            min-height: 0;
         }
 
         /* 全站唯一的衬线。换字体是最省力也最有效的"私密"信号。 */
         .letter-body p {
-            margin: 0 0 16px;
+            margin: 0 0 6px;
             font-family: var(--serif);
-            font-size: clamp(15px, 4vw, 17.5px);
-            line-height: 2.1;
+            font-size: clamp(15px, 3.7vw, 17px);
+            line-height: 1.95;
             color: rgba(255, 244, 230, .9);
             letter-spacing: .04em;
+        }
+
+        /* 信里的空行 = 段落间隔。给它一个确定的高度，别指望空 <p> 自己撑开。 */
+        .letter-body p.letter-gap {
+            height: 18px;
+            margin: 0 0 6px;
         }
 
         /* 正在打字的那一段末尾显示光标 */
@@ -1239,71 +1259,180 @@
             animation: pop .5s cubic-bezier(.34, 1.56, .64, 1);
         }
 
-        /* ---------- 三连彩蛋 ---------- */
-
-        #triple {
-            position: absolute;
-            left: 50%;
-            bottom: 22px;
-            z-index: 9400;
-            display: none;
-            gap: 14px;
-            transform: translateX(-50%);
-        }
-
-        #triple.triple--visible { display: flex; }
-
-        .triple-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-            width: 62px;
-            padding: 9px 0;
-            font-family: inherit;
-            color: rgba(255, 244, 230, .6);
-            background: rgba(255, 244, 230, .07);
-            border: 1px solid rgba(255, 244, 230, .16);
-            border-radius: 14px;
-            cursor: pointer;
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            transition: background .25s, border-color .25s, color .25s;
-        }
-
-        .triple-icon {
-            font-size: 22px;
-            line-height: 1;
-            filter: grayscale(1) opacity(.55);
-            transition: filter .3s;
-        }
-
-        .triple-label {
-            font-size: 11px;
-            letter-spacing: .06em;
-        }
-
-        .triple-btn--on {
-            color: #FFF4E6;
-            background: rgba(226, 58, 46, .2);
-            border-color: rgba(226, 58, 46, .58);
-        }
-
-        .triple-btn--on .triple-icon { filter: none; }
-
-        .triple-btn--pop { animation: pop .45s cubic-bezier(.34, 1.56, .64, 1); }
-
+        /* 只给「收下这封信」用。三连那边已经不用整块弹跳了 —— 见三连彩蛋那段注释。 */
         @keyframes pop {
             0%   { transform: scale(1); }
             45%  { transform: scale(1.28); }
             100% { transform: scale(1); }
         }
 
-        #triple.triple--complete {
-            animation: pop .5s cubic-bezier(.34, 1.56, .64, 1);
+        /* ---------- 三连彩蛋 ----------
+           三个小按钮 + 一个「一键三连」。语言跟信纸同一套：1px 细边、
+           极低对比玻璃、pill 圆角。图标全部是内联 SVG 描边。
+
+           上一版的三处问题，记在这里免得改回去：
+           1. 图标用系统 emoji（👍🪙⭐）。彩色、圆润、自带立体感，
+              在这套深色红金 + 衬线的画面里是贴纸。
+           2. 完成时整组按钮 pop 到 1.28 倍，同时 24 个 emoji 从屏幕顶端落下。
+              整块 UI 弹跳会让整个界面跟着抖；而"从天上掉雨"跟"我按了三下"没关系。
+           3. 没有一键三连。 */
+
+        #triple {
+            position: fixed;
+            /* 左右都锚住 + 内部居中，不要用 left:50% + translateX(-50%)：
+               fixed 元素在 left:50% 之后，shrink-to-fit 的可用宽度只剩半屏，
+               窄屏上四个按钮被压进 256px 里，文字直接竖排。 */
+            left: 0;
+            right: 0;
+            bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+            z-index: 9400;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transform: translateY(14px);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .6s ease,
+                        transform .6s cubic-bezier(.22, .61, .36, 1),
+                        visibility .6s;
         }
 
-        /* 三连达成后飘落的图标 */
+        /* 入场：从下方轻轻浮上来。之前 display:none → flex 是瞬间蹦出，没有过渡。 */
+        #triple.triple--visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .triple-btn {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            height: 40px;
+            padding: 0 15px;
+            font-family: inherit;
+            font-size: 12.5px;
+            letter-spacing: .05em;
+            white-space: nowrap;
+            color: rgba(255, 244, 230, .55);
+            background: rgba(255, 244, 230, .045);
+            border: 1px solid rgba(255, 244, 230, .14);
+            border-radius: 999px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: color .3s, background .3s, border-color .3s,
+                        box-shadow .4s, transform .25s;
+        }
+
+        .triple-btn:hover {
+            color: rgba(255, 244, 230, .88);
+            background: rgba(255, 244, 230, .085);
+        }
+
+        .triple-btn:active { transform: scale(.96); }
+
+        .triple-btn svg,
+        .triple-all svg {
+            width: 15px;
+            height: 15px;
+            flex: none;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* 点亮：不铺红色底块，只把颜色和一圈极淡的辉光烧起来 */
+        .triple-btn--on {
+            color: #FFE8D6;
+            background: rgba(226, 58, 46, .15);
+            border-color: rgba(255, 85, 70, .48);
+            box-shadow: inset 0 0 0 1px rgba(226, 58, 46, .16),
+                        0 0 18px rgba(226, 58, 46, .2);
+        }
+
+        /* 点亮瞬间只动图标。整块按钮弹跳会让整个界面跟着抖一下 —— 那是之前丑的主因。 */
+        .triple-btn--on svg { animation: iconSpark .55s ease-out; }
+        .triple-btn--on svg * { fill: rgba(255, 85, 70, .16); }
+
+        @keyframes iconSpark {
+            0%   { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(255, 85, 70, 0)); }
+            32%  { transform: scale(1.24); filter: drop-shadow(0 0 6px rgba(255, 85, 70, .9)); }
+            100% { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(255, 85, 70, 0)); }
+        }
+
+        /* 一键三连：主按钮，跟「收下这封信」用同一个渐变，读完信的人认得出它 */
+        .triple-all {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            height: 40px;
+            padding: 0 20px;
+            font-family: inherit;
+            font-size: 13px;
+            letter-spacing: .06em;
+            white-space: nowrap;
+            color: #0B0909;
+            background: linear-gradient(135deg, #FFB271, #FF5546);
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 6px 22px rgba(226, 58, 46, .3);
+            transition: transform .2s, box-shadow .2s, opacity .35s, background .35s;
+        }
+
+        .triple-all:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(226, 58, 46, .42);
+        }
+
+        .triple-all:active { transform: translateY(0) scale(.98); }
+
+        /* 完成后整组退到背景里，不再抢画面 */
+        #triple.triple--complete .triple-btn {
+            opacity: .42;
+            pointer-events: none;
+        }
+
+        #triple.triple--complete .triple-all {
+            color: rgba(255, 244, 230, .62);
+            background: rgba(255, 244, 230, .06);
+            box-shadow: none;
+            pointer-events: none;
+        }
+
+        /* 完成瞬间：一团柔光从按钮位置向外爆开，替代原来的整组弹跳。
+           不用 1px 细圆环 —— 扩到近千像素时那根线早就透明了，等于没有反馈。 */
+        .triple-ring {
+            position: fixed;
+            left: 50%;
+            bottom: calc(46px + env(safe-area-inset-bottom, 0px));
+            z-index: 9399;
+            width: 240px;
+            height: 240px;
+            margin: 0 0 -120px -120px;
+            border-radius: 50%;
+            pointer-events: none;
+            background: radial-gradient(circle,
+                        rgba(255, 196, 156, .72) 0%,
+                        rgba(255, 110, 80, .44) 30%,
+                        rgba(226, 58, 46, .16) 55%,
+                        transparent 72%);
+            animation: ringOut .95s cubic-bezier(.15, .75, .3, 1) forwards;
+        }
+
+        @keyframes ringOut {
+            0%   { transform: scale(.1); opacity: 1; }
+            100% { transform: scale(1.75); opacity: 0; }
+        }
+
+        /* 飘起的符号：起点就在按钮上，向上走，各自横向散开。
+           用 ♥ ✦ 这些衬线可渲染的字符，不用 emoji。 */
         .triple-burst {
             position: fixed;
             inset: 0;
@@ -1314,14 +1443,37 @@
 
         .triple-burst span {
             position: absolute;
-            top: -40px;
-            animation: burst-fall 2.6s ease-in forwards;
+            bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+            font-family: var(--serif);
+            font-size: 16px;
+            line-height: 1;
+            color: rgba(255, 150, 116, .98);
+            text-shadow: 0 0 10px rgba(255, 85, 70, .85),
+                         0 0 26px rgba(226, 58, 46, .5);
+            will-change: transform, opacity;
+            animation: riseFade 2.1s cubic-bezier(.2, .7, .3, 1) forwards;
         }
 
-        @keyframes burst-fall {
-            0%   { transform: translateY(0) rotate(0deg);       opacity: 0; }
-            12%  {                                              opacity: 1; }
-            100% { transform: translateY(105vh) rotate(320deg);  opacity: 0; }
+        @keyframes riseFade {
+            0%   { transform: translate3d(0, 12px, 0) scale(.45) rotate(0deg); opacity: 0; }
+            14%  { opacity: 1; }
+            70%  { opacity: .9; }
+            100% { transform: translate3d(var(--dx, 0px), -26vh, 0) scale(1.05) rotate(var(--rot, 0deg)); opacity: 0; }
+        }
+
+        /* 窄屏：三个小按钮只留图标，把宽度让给主按钮。
+           阈值放在 560 而不是 430 —— 430 时个别机型（或缩放后的视口）仍然挤。 */
+        @media (max-width: 560px) {
+            #triple { gap: 8px; padding: 0 12px; }
+            .triple-btn { padding: 0 13px; gap: 0; }
+            .triple-btn span { display: none; }
+            .triple-all { padding: 0 18px; font-size: 12.5px; }
+
+            /* 手机上一封 260 字的信必然要滚，但可以把行距收一点，
+               少滚一半。桌面保持舒展。 */
+            .letter-box { padding: 26px 20px 16px; }
+            .letter-body p { line-height: 1.85; margin-bottom: 5px; font-size: 15px; }
+            .letter-body p.letter-gap { height: 13px; }
         }
 
         /* ---------- 头像入场：白光闪烁 ---------- */
@@ -1508,11 +1660,13 @@
             var delay = tl.total + (cfg.letterDelay == null ? 2500 : cfg.letterDelay);
 
             setTimeout(function () {
-                Letter.show(lines, y.year, function () {
-                    // 信读完了，把三连按钮放出来
+                Letter.show(lines, y.year, null, function () {
+                    // 信纸收起之后才放三连。
+                    // 之前是在打字完成（onDone）时就 mount —— 那时信还盖着画面，
+                    // 三连的 z-index(9400) 低于信纸(9600)，只会在信下面露一角。
                     if (cfg.triple !== false) Triple.mount();
-                }, function () {
-                    // 信纸收起、画面重新露出，这时才提示可以点击切换
+
+                    // 画面重新露出，这时才提示可以点击切换
                     hintToggle();
                 });
             }, delay);
