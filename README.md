@@ -1,54 +1,82 @@
-# 生日祝福页
+# 辣椒素素素 · 生日纪念站
 
-粒子文字祝福 + 3D 透视烟花的单页网站，纯静态、无构建、无依赖。
+给一位喜欢的 UP 主做的生日站。三个目的：**给她过生日、记下这一天、把成长留成可以回看的东西。**
 
-## 快速定制
+纯静态单页，无构建、无依赖，`python -m http.server` 就能跑。
 
-只需编辑 [js/config.js](js/config.js)：
+- 生日：每年 10-20
+- 直播二周年：2026-07-17
+- 收录：2024 / 2025 / 2026 三年，每年一份节点文件
 
-```js
-name: '小明',                    // 祝福对象的名字
-messages: ['祝', '{name}', '生日快乐'],   // {name} 会自动替换
-photos: [{ src: 'images/1.jpg', caption: '第一次见面' }],
-```
+## 页面在讲什么
 
-祝福语建议每条不超过 6 个字，过长会被缩得很小。
+| 幕 | 画面 |
+|---|---|
+| 一 · 开播 | 粒子聚成祝福语（祝 / 昵称 / 生日快乐 / 当年的一句话），配 3D 透视烟花 |
+| 二 · 她 | 粒子聚成头像 → 昵称 → 头像，辣椒红渐变，来回一次 |
+| 三 · 陪你的人 | 我的关系线（什么时候开始看、发过什么）+ 大家的录播、切片、二创 |
+| 四 · 年鉴 | 横向年份频道，每年：里程碑时间轴 + 照片 + 她说过的话 |
+| 常驻 | 非生日期间显示倒数页，往年年鉴照样可翻 |
 
 ## 本地预览
 
 ```bash
 python -m http.server 8765
-# 打开 http://127.0.0.1:8765/
 ```
 
-必须通过 HTTP 服务器访问。直接双击打开 `index.html` 会因浏览器的
-`file://` 协议限制导致 canvas 读取像素失败，粒子文字无法显示。
+打开 <http://127.0.0.1:8765/>。**必须走 HTTP** —— 双击 `index.html` 会因 `file://` 限制导致 canvas 读不到像素，画面一片空白。
 
-## 添加照片
+想看完整演出（平时只显示倒数页）：
 
-把图片放进 `images/`，然后在 `config.js` 的 `photos` 里填写路径。
-`src` 留空则显示渐变占位卡，方便先确认版式。
+```
+http://127.0.0.1:8765/?celebrate
+```
 
-## 部署
+调试用 `?auto` 跳过引导层直接开演。
 
-纯静态站点，可直接部署到 Cloudflare Pages / GitHub Pages / Vercel。
-构建命令留空，输出目录填仓库根目录。
+## 每年怎么更新
 
-如果照片涉及隐私，注意：**公开仓库的 git 历史会永久保留提交过的图片，
-即使之后删除也能被找回。** 建议用私有仓库 + Cloudflare Pages，
-并在 Pages 设置里开启 Access 访问密码。
+只动三处：`data/YYYY.js`（内容）、`data/years.js`（加一年）、`images/YYYY/`（照片）。
+
+完整步骤、字段说明、常见问题都在 **[HOW-TO-UPDATE.md](HOW-TO-UPDATE.md)**，照着填空即可。
+
+推之前跑一遍校验：
+
+```bash
+node tools/check-data.mjs
+```
 
 ## 项目结构
 
 ```
-index.html          页面骨架、样式、烟花引擎
-js/config.js        全部可配置项 ← 改这里
-js/index.js         粒子文字引擎（Shape Shifter）
-js/carousel.js      回忆相册轮播
-NYE/                烟花素材（火花贴图 + 爆炸音效）
-font-awesome/       粒子图标（heart / heart-empty / forward）
-happy-birthday.mp3  背景音乐
+index.html            页面骨架、样式、烟花引擎
+js/config.js          昵称、生日、主题色、演出节奏
+js/hb.js              今天该显示倒数页还是演出
+js/index.js           粒子文字引擎（Shape Shifter 改）
+js/people.js          陪你的人
+js/timeline.js        往年时光轴
+js/danmaku.js         弹幕
+data/years.js         年份清单 ← 加年份改这里
+data/_template.js     年份模板 ← 每年复制它
+data/history.js       粉丝曲线采样点
+data/me.js            我的关系线
+data/fandom.js        大家的留档与二创
+data/bili.json        抓取快照（接口无 CORS，只能构建时落盘）
+docs/DESIGN.md        设计文档（含视觉参数为什么是这些数）
+docs/milestones-DRAFT.md  节点核对稿
+tools/check-data.mjs  内容校验
+tools/timing.mjs      算演出时长
+tools/shot.mjs        无头截图，逐帧核对视觉
+images/               照片与头像
+NYE/                  烟花素材
+font-awesome/         粒子图标
 ```
+
+## 部署
+
+纯静态，Cloudflare Pages 直接连仓库即可：构建命令留空，输出目录填根目录。`_headers` 已配好缓存策略，改完推上去约 1 分钟生效。
+
+**照片与信涉及隐私**：公开仓库的 git 历史会永久保留提交过的图片，删掉也能找回。建议私有仓库 + Pages 访问密码。
 
 ## 致谢
 
