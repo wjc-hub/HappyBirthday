@@ -74,9 +74,13 @@ font-awesome/         粒子图标
 
 ## 部署
 
-纯静态，Cloudflare Pages 直接连仓库即可：构建命令留空，输出目录填根目录。`_headers` 已配好缓存策略，改完推上去约 1 分钟生效。
+线上地址：<https://wjc-hub.github.io/HappyBirthday/>
 
-**照片与信涉及隐私**：公开仓库的 git 历史会永久保留提交过的图片，删掉也能找回。建议私有仓库 + Pages 访问密码。
+目前走 **GitHub Pages**：仓库 Settings → Pages，Source 选 `main` + 根目录。推到 `main` 后约 1 分钟自动重建。
+
+**GitHub Pages 不认 `_headers`。** 那个文件是给 Cloudflare Pages 的缓存策略（入口页 `no-cache`），在 GitHub Pages 上只会被当成普通静态文件返回，不起作用 —— Pages 自己的缓存是 `max-age=600`，改完最多十分钟内全网可见。哪天嫌它慢，把仓库接到 Cloudflare Pages（构建命令留空、输出目录填根目录）就能让 `_headers` 生效，其余不用改。
+
+**照片与信涉及隐私。** 这个仓库是公开的，git 历史会永久保留提交过的图片，删掉也能从历史里找回。真要放真实照片和信，建议转私有仓库 + Cloudflare Pages 的访问密码 —— GitHub Pages 在公开仓库上没法设访问限制。
 
 ## 致谢
 
