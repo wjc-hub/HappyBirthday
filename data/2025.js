@@ -78,8 +78,8 @@ HB.year(2025, {
       date: '2025-07-20',
       title: '百舰',
       type: 'milestone',
-      note: '与开播一周年同期',
-      source: '你提供（具体日期待考）',
+      note: '开播一周年后三天',
+      source: '你提供',
     },
     {
       date: '2025-08-11',

@@ -30,7 +30,7 @@ window.HB_HISTORY = {
     { date: '2025-12-21', followers: 640000,  source: '你提供' },
     { date: '2026-01-21', followers: 720000,  source: '你提供' },
     { date: '2026-02-25', followers: 830000,  source: '你提供' },
-    { date: '2026-06',    followers: 1000000, source: '你提供（日期待定）' },
+    { date: '2026-06-19', followers: 1000000, source: '你提供' },
     { date: '2026-11-11', followers: 1386504, source: 'B站 API 实时' },
   ],
 
