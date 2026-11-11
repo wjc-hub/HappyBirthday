@@ -36,11 +36,11 @@ var Danmaku = (function () {
       BASE_ALPHA = 0.7,     // 整体透明度，压住存在感
       FADE_STEP = 0.035;    // 淡入淡出速度（每帧）
 
-  // 弹幕配色。主体是柔和的粉紫暖调，与粒子文字同一色系，
-  // 不用纯白 —— 纯白在深色背景上太跳，会压过纤细的粒子点阵。
+  // 弹幕配色。主体是暖白，少量琥珀和红做点缀 —— 与粒子同一色系。
+  // 不用纯白：纯白在暗场上太跳，会压过纤细的粒子点阵。
   var COLORS = [
-    '#ffe3ef', '#ffe3ef', '#ffe3ef',
-    '#e8dcff', '#ffeccd', '#d6ecff', '#ffd9e6'
+    '#FFF4E6', '#FFF4E6', '#FFF4E6', '#FFF4E6',
+    '#FFD9A8', '#FFD9A8', '#FFB271', '#FF8A6A'
   ];
 
   function ensureCanvas() {
@@ -173,7 +173,7 @@ var Danmaku = (function () {
       // 这里的背景是深色夜空而非视频画面，不需要强描边保证可读性，
       // 粗描边反而让弹幕显得笨重、压过粒子。
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(10,4,24,.4)';
+      ctx.strokeStyle = 'rgba(11,9,9,.55)';
       ctx.strokeText(it.text, it.x, it.y);
 
       ctx.fillStyle = it.color;

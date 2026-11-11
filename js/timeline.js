@@ -38,6 +38,14 @@ var Timeline = (function () {
     return letter.filter(function (s) { return s && String(s).trim(); });
   }
 
+  // 把 1386504 写成 138.7 万。年鉴里不出现原始数字，太长了。
+  function formatWan(n) {
+    if (n == null) return '—';
+    if (n >= 1e8) return (n / 1e8).toFixed(2).replace(/\.?0+$/, '') + ' 亿';
+    if (n >= 1e4) return (n / 1e4).toFixed(1).replace(/\.0$/, '') + ' 万';
+    return String(n);
+  }
+
   function buildPhoto(photo, i) {
     var wrap = el('div', 'tl-photo');
 
@@ -70,16 +78,66 @@ var Timeline = (function () {
     return ph;
   }
 
-  function buildYear(data) {
-    var sec = el('section', 'tl-year');
+  // 里程碑：年鉴的主体。
+  // 一条 = 日期 + 圆点 + 标题 + 一句注脚，有链接就整块可点。
+  function buildMilestones(data) {
+    var list = (data.milestones || []).filter(function (m) {
+      return m && m.title && m.date;
+    });
+
+    if (!list.length) return null;
+
+    var wrap = el('div', 'tl-miles');
+
+    list.forEach(function (m) {
+      var item = el('div', 'tl-mile tl-mile--' + (m.type || 'milestone'));
+
+      // 日期：'2026-01-17' → '2026.01.17'，月份就只显示年月
+      item.appendChild(el('div', 'tl-mile-date', String(m.date).replace(/-/g, '.')));
+
+      var titleTag = m.link ? 'a' : 'span',
+          title = el(titleTag, 'tl-mile-title', HB.fill(m.title, data.year));
+
+      if (m.link) {
+        title.href = m.link;
+        title.target = '_blank';
+        title.rel = 'noopener noreferrer';
+      }
+      item.appendChild(title);
+
+      if (m.note) {
+        item.appendChild(el('span', 'tl-mile-note', HB.fill(m.note, data.year)));
+      }
+
+      wrap.appendChild(item);
+    });
+
+    return wrap;
+  }
+
+  function buildYear(data, isCurrent) {
+    var sec = el('section', 'tl-year' + (isCurrent ? ' tl-year--current' : ''));
 
     // 年份标头
     var head = el('div', 'tl-head');
     head.appendChild(el('div', 'tl-year-num', data.year));
+    if (isCurrent) head.appendChild(el('div', 'tl-year-tag', '今年'));
     if (data.headline) {
       head.appendChild(el('div', 'tl-headline', HB.fill(data.headline, data.year)));
     }
+
+    // 这一年的坐标：粉丝数 / 投稿数。只做注脚，不画图。
+    if (data.snapshot && data.snapshot.followers != null) {
+      head.appendChild(el('div', 'tl-snap',
+        '粉丝 ' + formatWan(data.snapshot.followers) +
+        '  ·  截至 ' + String(data.snapshot.date || '').slice(0, 7)));
+    }
+
     sec.appendChild(head);
+
+    // 里程碑（v2 的主体，放在照片之前）
+    var miles = buildMilestones(data);
+    if (miles) sec.appendChild(miles);
 
     // 照片
     var photos = (data.photos || []);
@@ -130,13 +188,19 @@ var Timeline = (function () {
       '<div class="tl-scroll"><div class="tl-inner"></div></div>';
 
     var inner = root.querySelector('.tl-inner'),
-        list = HB.archive();
+        f = HB.featured(),
+        past = HB.archive(),
+        // 「今年」也在年鉴里 —— v1 只看得到往年，
+        // 但这一年的节点恰恰是她最想看的。
+        list = (f ? [f] : []).concat(past);
 
     if (!list.length) {
       inner.appendChild(el('div', 'tl-empty',
         '往年的回忆还没有添加<br><span>以后每年都会往这里增加内容</span>'));
     } else {
-      list.forEach(function (data) { inner.appendChild(buildYear(data)); });
+      list.forEach(function (data, i) {
+        inner.appendChild(buildYear(data, i === 0 && data === f));
+      });
     }
 
     // 页脚署名

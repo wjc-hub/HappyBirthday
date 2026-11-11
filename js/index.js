@@ -13,6 +13,11 @@
 */
 
 
+// 采样网格间距：桌面大屏 9px，小屏 6px。
+// 采样（ShapeBuilder）和绘制（Drawing.drawCircle 的光斑上限）都要用它，
+// 所以提到最外面共用一个值 —— 两边一旦不一致，光斑就会盖住网格的缝。
+var GRID_GAP = (window.innerWidth > 500 && window.innerHeight > 500) ? 9 : 6;
+
 var S = {
   init: function (start) {
     var action = window.location.href,
@@ -48,6 +53,7 @@ S.Drawing = (function () {
       renderFn,
       looping = false,
       resizeBound = false,
+      glowLevel = 1,        // 0=关, 1=中, 2=高; 依设备性能在 init 里决定
       requestFrame = window.requestAnimationFrame       ||
                      window.webkitRequestAnimationFrame ||
                      window.mozRequestAnimationFrame    ||
@@ -57,11 +63,90 @@ S.Drawing = (function () {
                        window.setTimeout(callback, 1000 / 60);
                      };
 
+  // ---- 粒子辉光 ----
+  //
+  // 每帧为每颗粒子新建 createRadialGradient 太贵：800 粒子 × 60fps 意味着
+  // 每秒近 5 万个渐变对象和 20 万次 rgba 字符串解析，而渐变填充还走不了
+  // GPU 加速。改为按颜色预渲染一张离屏光晕纹理，之后每颗粒子只做一次
+  // drawImage 缩放绘制。
+  //
+  // 透明度不烘进纹理，改由 globalAlpha 施加 —— 否则每个 alpha 值都要各存
+  // 一份纹理，缓存会炸。
+  var glowCache = {},
+      SPRITE_SIZE = 64;
+
+  // 颜色量化到 8 的倍数。渐变配色模式下粒子颜色是按坐标连续插值出来的，
+  // 不量化缓存条目会无上限增长；8/255 的偏差肉眼不可辨。
+  function quantize(v) {
+    v = (v + 4) & ~7;
+    return v < 0 ? 0 : (v > 255 ? 255 : v);
+  }
+
+  function glowSprite(c) {
+    var r = quantize(c.r),
+        g = quantize(c.g),
+        b = quantize(c.b),
+        key = r + '_' + g + '_' + b,
+        sprite = glowCache[key];
+
+    if (sprite) return sprite;
+
+    sprite = document.createElement('canvas');
+    sprite.width = sprite.height = SPRITE_SIZE;
+
+    var ctx = sprite.getContext('2d'),
+        half = SPRITE_SIZE / 2,
+        rgb = r + ',' + g + ',' + b,
+        grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+
+    // 核心不能是白的。
+    //
+    // 原来这里固定 rgba(255,252,246,1)，于是每一颗粒子的中心都是近纯白；
+    // 一个字由几百颗粒子叠成，再经 lighter 相加 —— 核心全推到 255，
+    // 整块字就过曝成一片白，配色只在边缘露一条红边。
+    // 改成「本色提亮 22%」：密集处依然会亮起来，但底子始终是红的。
+    var cr = Math.round(r + (255 - r) * 0.22),
+        cg = Math.round(g + (255 - g) * 0.22),
+        cb = Math.round(b + (255 - b) * 0.22);
+
+    // 亮度必须和粒子密度一起看：这里用的 lighter 是加法混合，
+    // 同一处叠 5 颗就接近打满。间距从 13 收到 9 之后重叠翻倍，
+    // 原来的峰值 1.0 会直接烧成白芯 —— 所以峰值一起压到 0.62。
+    grad.addColorStop(0.00, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.62)');
+    grad.addColorStop(0.22, 'rgba(' + rgb + ',0.5)');
+    grad.addColorStop(0.50, 'rgba(' + rgb + ',0.15)');
+    grad.addColorStop(0.76, 'rgba(' + rgb + ',0.04)');
+    grad.addColorStop(1.00, 'rgba(' + rgb + ',0)');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
+
+    glowCache[key] = sprite;
+    return sprite;
+  }
+
   return {
     init: function (el, s) {
       canvas = document.querySelector(el);
       context = canvas.getContext('2d');
       this.adjustCanvas();
+
+      // 根据设备性能和屏幕尺寸决定辉光等级，避免低端机动画卡顿
+      var area = window.innerWidth * window.innerHeight,
+          dpr = window.devicePixelRatio || 1,
+          mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      if (area < 360000 || mobile || dpr > 2) {
+        glowLevel = 1;                    // 中质量：两层圆叠加
+      } else {
+        glowLevel = 2;                    // 高质量：径向渐变光晕
+      }
+
+      // 尊重系统「减少动画」偏好
+      if (window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        glowLevel = 0;
+      }
 
       // init 会被调用两次（待机 / 正式播放），监听只绑一次
       if (!resizeBound) {
@@ -92,6 +177,8 @@ S.Drawing = (function () {
     },
 
     clearFrame: function () {
+      // 先恢复默认混合模式，否则 clearRect 在某些浏览器上可能行为异常
+      context.globalCompositeOperation = 'source-over';
       context.clearRect(0, 0, canvas.width, canvas.height);
     },
 
@@ -99,12 +186,48 @@ S.Drawing = (function () {
       return { w: canvas.width, h: canvas.height };
     },
 
+    setBlendMode: function (mode) {
+      context.globalCompositeOperation = mode;
+    },
+
+    resetBlendMode: function () {
+      context.globalCompositeOperation = 'source-over';
+      // drawCircle 会为每颗粒子改 globalAlpha，这里一并复位，
+      // 否则后续绘制会继承最后一颗粒子的透明度
+      context.globalAlpha = 1;
+    },
+
+    getGlowLevel: function () {
+      return glowLevel;
+    },
+
     drawCircle: function (p, c) {
-      context.fillStyle = c.render();
-      context.beginPath();
-      context.arc(p.x, p.y, p.z, 0, 2 * Math.PI, true);
-      context.closePath();
-      context.fill();
+      var r = p.z;
+      if (r <= 0) return;
+
+      // 最低质量（系统开启「减少动画」时）：保留原版实心圆
+      if (glowLevel === 0) {
+        context.fillStyle = c.render();
+        context.beginPath();
+        context.arc(p.x, p.y, r, 0, 2 * Math.PI, true);
+        context.closePath();
+        context.fill();
+        return;
+      }
+
+      // 光晕直径。等级 2 铺得更开，等级 1 收紧以减少填充面积。
+      //
+      // 这两个系数直接决定字能不能认出来：光斑一旦明显大于采样间距，
+      // 相邻两颗粒子的光晕就会叠在一起，加法混合下笔画之间被填满 ——
+      // 四个字糊成一条发光的灯管。
+      // 所以再加一道硬上限：光斑不超过网格的 1.45 倍。
+      // 手机网格是 6，粒子半径却还是同一套随机值，不设上限的话
+      // 手机上光斑相对字宽会比桌面大一倍，字直接糊掉。
+      var d = Math.min(r * (glowLevel >= 2 ? 2.8 : 2.2), GRID_GAP * 1.45),
+          a = c.a < 0 ? 0 : (c.a > 1 ? 1 : c.a);
+
+      context.globalAlpha = a;
+      context.drawImage(glowSprite(c), p.x - d / 2, p.y - d / 2, d, d);
     }
   }
 }());
@@ -487,10 +610,15 @@ S.Palette = (function () {
 
 
 S.Dot = function (x, y) {
+  // 让每颗星大小不同：大屏 2~6px，小屏 1.5~4.5px。
+  // 差异比统一大小重要得多 —— 统一大小看起来像马赛克，大小不一才像星群。
+  var small = window.innerWidth <= 500 || window.innerHeight <= 500,
+      baseZ = small ? (1.5 + Math.random() * 3) : (2 + Math.random() * 4);
+
   this.p = new S.Point({
     x: x,
     y: y,
-    z: 5,
+    z: baseZ,
     a: 1,
     h: 0
   });
@@ -642,8 +770,15 @@ S.Dot.prototype = {
 
 
 S.ShapeBuilder = (function () {
-  // 粒子采样间距：大屏用更大的间距，粒子更疏但每个更大，观感更好
-  var gap = (window.innerWidth > 500 && window.innerHeight > 500) ? 13 : 8;
+  // 粒子采样间距。间距越大粒子越稀、每颗越大，英文单词看起来更有「点阵」感。
+  //
+  // 中文不行 —— 这个引擎原版是给英文用的，字母笔画少；
+  // 换成一个四字祝福，笔画细密，13 的间距一整个字只剩两百来颗粒子，
+  // 笔画立不住，只能靠光晕糊成一条。9 是桌面大屏上还能认出字的密度。
+  //
+  // 手机屏宽只有 390，五个字挤在一起每字才 60 多像素，
+  // 按 9 采样每个字横向只剩六七颗 —— 笔画直接粘成一条。小屏收到 6。
+  var gap = GRID_GAP;
 
   var shapeCanvas = document.createElement('canvas'),
       shapeContext = shapeCanvas.getContext('2d'),
@@ -770,6 +905,48 @@ S.ShapeBuilder = (function () {
             var lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
             return wantLight ? lum > threshold : lum < threshold;
           };
+        } else if (mode === 'edge') {
+          // 取轮廓。
+          //
+          // 当前这张头像是深蓝底 + 奶油色猫脸的平涂图。
+          // 按亮部取样只能拿到「猫脸」那一整块 —— 眼睛、鼻子、嘴全在暗部，
+          // 被阈值筛掉，聚出来就是一个没有五官的圆团，认不出是谁。
+          //
+          // 改成取亮度突变：只有落在明暗交界上的格子才放粒子。
+          // 于是外轮廓、耳朵、眼睛、嘴都留了下来，整体像一幅星座线稿。
+          var edgeTh = 22,
+              W = shapeCanvas.width,
+              H = shapeCanvas.height;
+
+          sampler = function (px, i) {
+            // i 是这一格左上角像素的字节下标，反推出网格坐标
+            var px0 = i / 4,
+                x0 = px0 % W,
+                y0 = Math.floor(px0 / W);
+
+            for (var dy = 0; dy < gap; dy++) {
+              var y = y0 + dy;
+              if (y >= H) break;
+
+              for (var dx = 0; dx < gap; dx++) {
+                var x = x0 + dx;
+                if (x >= W) break;
+
+                var q = (y * W + x) * 4,
+                    // 透明像素当作纯黑，这样剪影的外沿也是一条边
+                    lum = px[q + 3] < 128 ? 0 : px[q] * 0.299 + px[q + 1] * 0.587 + px[q + 2] * 0.114,
+                    // 只和「下一格」比，避免同一道边被左右两格各记一次
+                    ex = q + (x + gap < W ? gap * 4 : 0),
+                    ey = q + (y + gap < H ? gap * W * 4 : 0),
+                    lumX = px[ex + 3] < 128 ? 0 : px[ex] * 0.299 + px[ex + 1] * 0.587 + px[ex + 2] * 0.114,
+                    lumY = px[ey + 3] < 128 ? 0 : px[ey] * 0.299 + px[ey + 1] * 0.587 + px[ey + 2] * 0.114;
+
+                if (Math.abs(lum - lumX) > edgeTh || Math.abs(lum - lumY) > edgeTh) return true;
+              }
+            }
+
+            return false;
+          };
         }
 
         var shape = processCanvas(sampler);
@@ -806,9 +983,14 @@ S.ShapeBuilder = (function () {
     letter: function (l) {
       var s = 0;
 
+      // 两侧留白。桌面留 20%（0.8）视觉上更松弛；
+      // 手机上 390 宽要塞五个字，留 20% 之后每字只有 62px，
+      // 笔画还没采样间距宽，怎么调都是一条光带 —— 小屏放宽到 0.92。
+      var fitW = (window.innerWidth > 500 && window.innerHeight > 500) ? 0.8 : 0.92;
+
       setFontSize(fontSize);
       s = Math.min(fontSize,
-                  (shapeCanvas.width / shapeContext.measureText(l).width) * 0.8 * fontSize,
+                  (shapeCanvas.width / shapeContext.measureText(l).width) * fitW * fontSize,
                   (shapeCanvas.height / fontSize) * (isNumber(l) ? 1 : 0.45) * fontSize);
       setFontSize(s);
 
@@ -886,7 +1068,14 @@ S.Shape = (function () {
       if (n.dots.length > dots.length) {
         size = n.dots.length - dots.length;
         for (var d = 1; d <= size; d++) {
-          dots.push(new S.Dot(a.w / 2, a.h / 2));
+          // 新粒子不能在画面正中「出生」。
+          // 它们全叠在同一个点上、透明度又是满的，加法混合下会先在字中间
+          // 烧成一个白球，再慢慢飞散 —— 每一帧都这样，观感像字被打了洞。
+          // 出生点撒在画面任意处、透明度从 0 起，让它们从暗处飘进来。
+          var born = new S.Dot(Math.random() * a.w, Math.random() * a.h);
+          born.p.a = 0;
+          born.c.a = 0;
+          dots.push(born);
         }
       }
 
@@ -934,7 +1123,8 @@ S.Shape = (function () {
           x: n.dots[i].x + cx,
           y: n.dots[i].y + cy,
           a: 1,
-          z: opts.converge ? (4 + Math.random() * 3) : 5,
+          // 目标大小也带随机，但头像阶段整体稍大、更醒目
+          z: opts.converge ? (3.5 + Math.random() * 3) : (2.5 + Math.random() * 3.5),
           h: 0
         }));
 
@@ -972,9 +1162,13 @@ S.Shape = (function () {
     },
 
     render: function () {
+      // 整批粒子用 lighter 叠加，重叠处更亮，形成星光聚拢的辉光感。
+      // 在循环外只设置一次混合模式，避免每颗粒子重复设置的开销。
+      S.Drawing.setBlendMode('lighter');
       for (var d = 0; d < dots.length; d++) {
         dots[d].render();
       }
+      S.Drawing.resetBlendMode();
     }
   }
 }());

@@ -13,16 +13,64 @@
     <meta name="description" id="meta-desc" content=""/>
 
     <style>
+        /* ------------------------------------------------------------
+           设计令牌 · 凌晨两点的直播间
+           暖黑打底，辣椒红做主色，暖白替代纯白。
+           全站不用 #FFF / #000 —— 纯白纯黑会让画面变成印刷品，不是夜里。
+           ------------------------------------------------------------ */
+
+        :root {
+            --ink-900: #0B0909;   /* 页面底 */
+            --ink-800: #141011;   /* 卡片底 */
+            --ink-700: #1F191A;   /* 分隔 / 描边 */
+
+            --red-600: #C42B20;   /* 按下 / 描边 */
+            --red-500: #E23A2E;   /* 主色 */
+            --red-400: #FF5546;   /* 高亮 / 数字 */
+
+            --amber-400: #FFA53D; /* 舞台灯 */
+            --amber-200: #FFD9A8;
+
+            --cream-50:  #FFF4E6; /* 主文字（暖白） */
+            --cream-300: #C9B8AE; /* 次级文字 */
+            --mute:      #7A6B66; /* 日期 / 说明 */
+
+            --sans: "PingFang SC", "HarmonyOS Sans SC", "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", "Hiragino Sans GB", Avenir, "Helvetica Neue", Arial, sans-serif;
+            --serif: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+            --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+        }
+
         html, body {
             margin: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            /* 深夜空渐变：让烟花与发光地面网格更突出 */
-            background: radial-gradient(ellipse at 50% 120%, #2b1055 0%, #16082e 45%, #06020f 100%);
-            font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            /* 暗场五层，从近到远：
+               颗粒 → 扫描线 → 顶部舞台灯 → 底部辣椒红余温 → 近黑暖灰底。
+               颗粒和扫描线并进背景而不是单独做一层叠加：
+               单独一层 + 混合模式会让每帧都要重新合成，实测掉 10fps。 */
+            background-color: var(--ink-900);
+            background-image:
+                url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E"),
+                repeating-linear-gradient(to bottom,
+                    rgba(255, 244, 230, .014) 0 1px,
+                    transparent 1px 4px),
+                radial-gradient(ellipse 36% 50% at 58% -6%,
+                    rgba(255, 196, 130, .26), rgba(255, 165, 61, .07) 46%, transparent 72%),
+                radial-gradient(ellipse 30% 40% at 30% -4%,
+                    rgba(255, 176, 96, .10), transparent 70%),
+                radial-gradient(ellipse 92% 48% at 50% 108%,
+                    rgba(226, 58, 46, .22), transparent 70%),
+                radial-gradient(ellipse at 50% 45%, #171112 0%, #0B0909 58%, #070505 100%);
+            background-size: 140px 140px, auto, auto, auto, auto, auto;
+            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+            font-family: var(--sans);
             -webkit-tap-highlight-color: transparent;
         }
+
+        /* 舞台灯不单独做图层。带 clip-path 的梯形无论怎么模糊，
+           边缘都会硬得像一块色板；光就放进背景里 —— 偏右上的一束椭圆光斑，
+           看起来是"打上来的光"，而不是"画上去的形状"。 */
 
         /* ---------- 背景星空 ---------- */
 
@@ -43,6 +91,9 @@
             height: 100%;
         }
 
+        /* 烟花的贴图是彩虹配色，和这一版的红/暖金打架。
+           用一层颜色矩阵整体压向暖色，不重绘贴图。
+           颜色矩阵比模糊便宜得多，但仍然是每帧运算，低端机另算。 */
         #canvas { z-index: 8888; }
         .canvas { z-index: 9000; }
 
@@ -67,7 +118,10 @@
             justify-content: center;
             gap: 28px;
             cursor: pointer;
-            background: rgba(6, 2, 15, .55);
+            background:
+                radial-gradient(ellipse 44% 38% at 50% 50%,
+                    rgba(9, 7, 7, .88) 0%, rgba(9, 7, 7, .68) 58%, rgba(9, 7, 7, .52) 100%),
+                rgba(9, 7, 7, .55);
             backdrop-filter: blur(2px);
             -webkit-backdrop-filter: blur(2px);
             transition: opacity .8s ease;
@@ -79,22 +133,48 @@
         }
 
         #intro-title {
-            font-size: clamp(32px, 9vw, 64px);
-            font-weight: 700;
-            color: #fff;
-            letter-spacing: .08em;
-            text-shadow: 0 0 24px rgba(255, 160, 200, .8), 0 0 60px rgba(255, 120, 180, .5);
-            animation: float 3.2s ease-in-out infinite;
+            font-size: clamp(34px, 9.5vw, 68px);
+            font-weight: 800;
+            color: var(--cream-50);
+            letter-spacing: .02em;
+            text-shadow:
+                0 6px 32px rgba(0, 0, 0, .9),
+                0 0 60px rgba(226, 58, 46, .45);
+            animation: float 3.6s ease-in-out infinite;
         }
 
         #intro-hint {
-            font-size: clamp(14px, 3.6vw, 18px);
-            color: rgba(255, 255, 255, .8);
-            letter-spacing: .12em;
-            padding: 12px 28px;
-            border: 1px solid rgba(255, 255, 255, .35);
-            border-radius: 999px;
-            animation: breathe 2.4s ease-in-out infinite;
+            font-family: var(--mono);
+            font-size: clamp(11px, 3.2vw, 13px);
+            color: rgba(255, 244, 230, .82);
+            letter-spacing: .26em;
+            padding: 10px 22px;
+            background: rgba(9, 7, 7, .5);
+            border: 1px solid rgba(255, 244, 230, .3);
+            border-radius: 4px;
+            animation: breathe 3.4s ease-in-out infinite;
+        }
+
+        /* 呼吸的红色指示灯 + 一行小字。
+           倒数页和引导层共用 —— 这是"直播间待机"的那个标记。 */
+        .mark {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-family: var(--mono);
+            font-size: 11px;
+            letter-spacing: .3em;
+            color: rgba(255, 244, 230, .8);
+            text-shadow: 0 2px 14px rgba(0, 0, 0, .9);
+        }
+
+        .mark .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--red-500);
+            box-shadow: 0 0 12px rgba(226, 58, 46, .85);
+            animation: breathe 2.8s ease-in-out infinite;
         }
 
         #intro-error {
@@ -123,24 +203,39 @@
             z-index: 9550;
             display: none;              /* 引导层关闭后才显示 */
             align-items: center;
-            gap: 8px;
-            padding: 10px 18px;
-            font-size: 14px;
+            gap: 7px;
+            padding: 8px 13px;
+            font-size: 12.5px;
             font-family: inherit;
-            color: rgba(255, 255, 255, .9);
-            background: rgba(255, 255, 255, .1);
-            border: 1px solid rgba(255, 255, 255, .25);
-            border-radius: 999px;
+            letter-spacing: .1em;
+            color: rgba(255, 244, 230, .76);
+            background: rgba(255, 244, 230, .045);
+            border: 1px solid rgba(255, 244, 230, .15);
+            border-radius: 8px;
             cursor: pointer;
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            transition: background .25s, transform .25s;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: background .25s, border-color .25s, color .25s, transform .25s;
+        }
+
+        /* 图标用等宽字形，不用 emoji：emoji 一带颜色就变成"礼物模板"了 */
+        .fab-ico {
+            font-style: normal;
+            font-family: var(--mono);
+            font-size: 12px;
+            line-height: 1;
+            opacity: .6;
+            transition: opacity .25s, color .25s;
         }
 
         .fab:hover {
-            background: rgba(255, 255, 255, .2);
+            color: var(--cream-50);
+            background: rgba(226, 58, 46, .16);
+            border-color: rgba(226, 58, 46, .5);
             transform: translateY(-2px);
         }
+
+        .fab:hover .fab-ico { opacity: 1; color: var(--red-400); }
 
         body.started .fab { display: inline-flex; }
 
@@ -154,6 +249,7 @@
         #btn-danmaku { top: 68px;  right: 20px; }
         #btn-album { bottom: 24px; right: 20px; }
         #btn-timeline { bottom: 24px; left: 20px; }
+        #btn-people { bottom: 78px; left: 20px; }
 
         /* 关闭状态：图标去色、整体压暗，一眼能看出是关的 */
         .fab--off {
@@ -173,7 +269,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(4, 2, 12, .82);
+            background: rgba(9, 7, 7, .88);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             opacity: 0;
@@ -206,7 +302,7 @@
             position: relative;
             flex: 0 0 100%;
             aspect-ratio: 5 / 3;
-            background: #120a24;
+            background: var(--ink-800);
         }
 
         .carousel-slide img {
@@ -224,7 +320,7 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
-            color: rgba(255, 255, 255, .95);
+            color: rgba(255, 244, 230, .95);
             text-align: center;
         }
 
@@ -248,7 +344,7 @@
             bottom: 0;
             padding: 32px 20px 16px;
             font-size: clamp(14px, 3.4vw, 18px);
-            color: #fff;
+            color: #FFF4E6;
             text-align: center;
             letter-spacing: .06em;
             background: linear-gradient(to top, rgba(0, 0, 0, .7), transparent);
@@ -259,9 +355,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            color: #FFF4E6;
             background: rgba(0, 0, 0, .45);
-            border: 1px solid rgba(255, 255, 255, .2);
+            border: 1px solid rgba(255, 244, 230, .2);
             border-radius: 50%;
             cursor: pointer;
             transition: background .2s;
@@ -302,7 +398,7 @@
             width: 10px;
             height: 10px;
             padding: 0;
-            background: rgba(255, 255, 255, .3);
+            background: rgba(255, 244, 230, .3);
             border: none;
             border-radius: 50%;
             cursor: pointer;
@@ -310,7 +406,7 @@
         }
 
         .carousel-dot--active {
-            background: #fff;
+            background: #FFF4E6;
             transform: scale(1.35);
         }
 
@@ -332,11 +428,11 @@
             padding: 12px 20px;
             font-size: 14px;
             line-height: 1.5;
-            color: #fff;
+            color: #FFF4E6;
             text-align: center;
             white-space: normal;
-            background: rgba(20, 10, 40, .9);
-            border: 1px solid rgba(255, 255, 255, .2);
+            background: rgba(20, 16, 17, .96);
+            border: 1px solid rgba(255, 244, 230, .2);
             border-radius: 12px;
             transform: translate(-50%, 12px);
             opacity: 0;
@@ -366,38 +462,84 @@
 
         #countdown-page.cd--visible { display: flex; }
 
-        #cd-label {
-            font-size: clamp(15px, 4vw, 20px);
-            color: rgba(255, 255, 255, .75);
-            letter-spacing: .14em;
+        /* 数字背后的红色余晖。粒子层在倒数页是关掉的，
+           这团光是代替它站在数字后面的东西。 */
+        #countdown-page::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: min(88vw, 720px);
+            height: min(70vw, 560px);
+            transform: translate(-50%, -54%);
+            pointer-events: none;
+            background: radial-gradient(ellipse at center,
+                rgba(226, 58, 46, .20) 0%,
+                rgba(226, 58, 46, .07) 42%,
+                transparent 70%);
         }
+
+        #countdown-page > * { position: relative; }
+
+        #cd-label {
+            font-family: var(--mono);
+            font-size: clamp(11px, 3.2vw, 12.5px);
+            color: rgba(255, 244, 230, .45);
+            letter-spacing: .16em;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, .9);
+        }
+
+        /* 倒数模式：把粒子层降权，让数字成为唯一主角。
+           v1 的硬伤是爱心把标题和「天」压住，几乎读不出来。
+           现在爱心退成数字背后的一团光，仍然是它，但不再抢。 */
+
+        body.countdown-mode #canvas,
+        body.countdown-mode .canvas {
+            opacity: 0;
+            transform: scale(.68) translateY(7%);
+            transform-origin: 50% 46%;
+            filter: saturate(.9);
+            transition: opacity .9s ease, transform .9s ease;
+        }
+
+        /* 倒数页盖在画布上，只让按钮接收点击 */
+        body.countdown-mode #countdown-page { pointer-events: none; }
+        body.countdown-mode #countdown-page button { pointer-events: auto; }
 
         #cd-number {
             display: flex;
             align-items: baseline;
-            gap: 10px;
-            color: #fff;
-            text-shadow: 0 0 30px rgba(255, 160, 200, .75), 0 0 70px rgba(255, 120, 180, .45);
+            gap: 14px;
+            color: var(--cream-50);
         }
 
         #cd-days {
-            font-size: clamp(64px, 22vw, 150px);
-            font-weight: 700;
-            line-height: 1;
+            font-size: clamp(96px, 22vw, 200px);
+            font-weight: 800;
+            line-height: .92;
+            letter-spacing: -.02em;
             font-variant-numeric: tabular-nums;
+            color: var(--red-400);
+            text-shadow:
+                0 0 6px rgba(226, 58, 46, .5),
+                0 0 48px rgba(226, 58, 46, .45),
+                0 0 140px rgba(226, 58, 46, .22);
         }
 
         #cd-unit {
-            font-size: clamp(18px, 5vw, 30px);
-            opacity: .85;
+            font-family: var(--mono);
+            font-size: clamp(14px, 4vw, 20px);
+            letter-spacing: .1em;
+            color: rgba(255, 244, 230, .45);
         }
 
         /* 生日当天但演出尚未开始时，用这行替代数字 */
         #cd-today {
             font-size: clamp(30px, 8vw, 56px);
-            font-weight: 700;
-            color: #fff;
-            text-shadow: 0 0 30px rgba(255, 160, 200, .8);
+            font-weight: 800;
+            color: var(--red-400);
+            letter-spacing: .04em;
+            text-shadow: 0 0 40px rgba(226, 58, 46, .6);
             animation: float 3.2s ease-in-out infinite;
         }
 
@@ -415,7 +557,7 @@
             position: fixed;
             inset: 0;
             z-index: 9850;
-            background: rgba(6, 3, 16, .96);
+            background: rgba(9, 7, 7, .995);
             opacity: 0;
             pointer-events: none;
             transition: opacity .4s ease;
@@ -450,14 +592,14 @@
             height: 40px;
             font-size: 24px;
             line-height: 1;
-            color: #fff;
-            background: rgba(255, 255, 255, .12);
-            border: 1px solid rgba(255, 255, 255, .25);
+            color: #FFF4E6;
+            background: rgba(255, 244, 230, .12);
+            border: 1px solid rgba(255, 244, 230, .25);
             border-radius: 50%;
             cursor: pointer;
         }
 
-        .tl-close:hover { background: rgba(255, 255, 255, .24); }
+        .tl-close:hover { background: rgba(255, 244, 230, .24); }
 
         /* 每一年之间用竖线连起来，形成时间轴的视觉 */
         .tl-year {
@@ -472,7 +614,7 @@
             bottom: 24px;
             width: 1px;
             height: 32px;
-            background: linear-gradient(to bottom, rgba(255, 255, 255, .35), transparent);
+            background: linear-gradient(to bottom, rgba(255, 244, 230, .35), transparent);
         }
 
         .tl-head {
@@ -483,17 +625,115 @@
         .tl-year-num {
             font-size: clamp(38px, 11vw, 64px);
             font-weight: 700;
-            color: #fff;
+            color: #FFF4E6;
             line-height: 1;
             letter-spacing: .04em;
-            text-shadow: 0 0 26px rgba(255, 150, 195, .5);
+            text-shadow: 0 0 30px rgba(226, 58, 46, .45);
         }
 
         .tl-headline {
             margin-top: 10px;
             font-size: clamp(14px, 3.6vw, 17px);
-            color: rgba(255, 255, 255, .65);
+            color: rgba(255, 244, 230, .65);
             letter-spacing: .08em;
+        }
+
+        /* 「今年」标签：只有最新那一年有 */
+        .tl-year-tag {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 2px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            letter-spacing: .14em;
+            color: rgba(255, 244, 230, .8);
+            background: rgba(255, 244, 230, .12);
+            border: 1px solid rgba(255, 244, 230, .18);
+        }
+
+        /* 这一年的坐标：粉丝数，只做注脚 */
+        .tl-snap {
+            margin-top: 10px;
+            font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+            font-size: 11px;
+            letter-spacing: .06em;
+            color: rgba(255, 244, 230, .45);
+        }
+
+        /* ---------- 里程碑 ----------
+           年鉴的主体。左边日期、中间圆点、右边内容，
+           竖线把它们串成一条时间线。 */
+
+        .tl-miles {
+            position: relative;
+            margin: 0 0 30px 0;
+            padding-left: 20px;
+        }
+
+        .tl-miles::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 6px;
+            bottom: 6px;
+            width: 1px;
+            background: linear-gradient(to bottom,
+                rgba(255, 244, 230, .28),
+                rgba(255, 244, 230, .10));
+        }
+
+        .tl-mile {
+            position: relative;
+            padding: 0 0 16px 0;
+        }
+
+        .tl-mile:last-child { padding-bottom: 0; }
+
+        .tl-mile::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 7px;
+            width: 9px;
+            height: 9px;
+            margin-left: -1px;
+            border-radius: 50%;
+            background: rgba(255, 244, 230, .55);
+            box-shadow: 0 0 10px rgba(226, 58, 46, .55);
+        }
+
+        /* 按类型给圆点上色，扫一眼能分出「投稿 / 直播 / 数据 / 生日」 */
+        .tl-mile--work::before      { background: #FFB271; }   /* 投稿 · 琥珀 */
+        .tl-mile--live::before      { background: #FF6B5A; }   /* 直播 · 红 */
+        .tl-mile--milestone::before { background: #FFD9A8; }   /* 数据 · 暖金 */
+        .tl-mile--birthday::before  { background: #FF5546; box-shadow: 0 0 16px rgba(226, 58, 46, .9); }
+        .tl-mile--meme::before      { background: #C9B8AE; }   /* 梗 · 沙 */
+        .tl-mile--me::before        { background: #FFF4E6; box-shadow: 0 0 14px rgba(255, 244, 230, .9); }
+
+        .tl-mile-date {
+            font-family: var(--mono);
+            font-size: 11px;
+            letter-spacing: .08em;
+            color: rgba(255, 244, 230, .52);
+        }
+
+        .tl-mile-title {
+            display: block;
+            margin-top: 3px;
+            font-size: clamp(14px, 3.8vw, 16px);
+            color: rgba(255, 244, 230, .94);
+            line-height: 1.5;
+            text-decoration: none;
+        }
+
+        a.tl-mile-title:hover { text-decoration: underline; }
+
+        .tl-mile-note {
+            display: block;
+            margin-top: 3px;
+            font-size: 12.5px;
+            color: rgba(255, 244, 230, .62);
+            line-height: 1.6;
         }
 
         .tl-photos {
@@ -508,7 +748,7 @@
             border-radius: 12px;
             overflow: hidden;
             aspect-ratio: 4 / 3;
-            background: #150c28;
+            background: var(--ink-800);
         }
 
         .tl-photo img {
@@ -526,7 +766,7 @@
             justify-content: center;
             font-size: 34px;
             font-weight: 700;
-            color: rgba(255, 255, 255, .55);
+            color: rgba(255, 244, 230, .55);
         }
 
         .tl-photo-cap {
@@ -536,7 +776,7 @@
             bottom: 0;
             padding: 22px 12px 9px;
             font-size: 13px;
-            color: #fff;
+            color: #FFF4E6;
             background: linear-gradient(to top, rgba(0, 0, 0, .78), transparent);
         }
 
@@ -545,8 +785,8 @@
         .tl-quote {
             margin: 0 0 14px;
             padding: 16px 20px;
-            background: rgba(255, 255, 255, .06);
-            border-left: 3px solid rgba(255, 160, 200, .8);
+            background: rgba(255, 244, 230, .06);
+            border-left: 3px solid rgba(226, 58, 46, .75);
             border-radius: 0 10px 10px 0;
         }
 
@@ -554,7 +794,7 @@
             margin: 0;
             font-size: clamp(15px, 4vw, 18px);
             line-height: 1.75;
-            color: rgba(255, 255, 255, .93);
+            color: rgba(255, 244, 230, .93);
         }
 
         .tl-quote-from {
@@ -562,14 +802,14 @@
             margin-top: 9px;
             font-size: 12px;
             font-style: normal;
-            color: rgba(255, 255, 255, .5);
+            color: rgba(255, 244, 230, .5);
             letter-spacing: .06em;
         }
 
         .tl-letter {
             padding: 20px 22px;
-            background: rgba(255, 255, 255, .04);
-            border: 1px solid rgba(255, 255, 255, .1);
+            background: rgba(255, 244, 230, .04);
+            border: 1px solid rgba(255, 244, 230, .1);
             border-radius: 12px;
         }
 
@@ -577,7 +817,7 @@
             margin: 0 0 12px;
             font-size: clamp(14px, 3.7vw, 16px);
             line-height: 1.95;
-            color: rgba(255, 255, 255, .82);
+            color: rgba(255, 244, 230, .82);
         }
 
         .tl-letter p:last-child { margin-bottom: 0; }
@@ -587,22 +827,271 @@
             text-align: center;
             font-size: 16px;
             line-height: 2;
-            color: rgba(255, 255, 255, .6);
+            color: rgba(255, 244, 230, .6);
         }
 
         .tl-empty span {
             font-size: 13px;
-            color: rgba(255, 255, 255, .38);
+            color: rgba(255, 244, 230, .38);
         }
 
         .tl-footer {
             margin-top: 40px;
             padding-top: 22px;
-            border-top: 1px solid rgba(255, 255, 255, .1);
+            border-top: 1px solid rgba(255, 244, 230, .1);
             text-align: center;
             font-size: 12px;
             line-height: 1.9;
-            color: rgba(255, 255, 255, .4);
+            color: rgba(255, 244, 230, .4);
+        }
+
+        /* ---------- 陪你的人 ----------
+           两个视角：我和大家。和时光轴同一套暗底，但用白点区分。 */
+
+        .pp-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 9810;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(9, 7, 7, .995);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .35s ease;
+        }
+
+        .pp-modal--visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .pp-scroll {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .pp-inner {
+            width: min(92vw, 880px);
+            margin: 0 auto;
+            padding: 64px 20px 80px;
+        }
+
+        .pp-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 2;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 244, 230, .22);
+            background: rgba(255, 244, 230, .1);
+            color: #FFF4E6;
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background .25s;
+        }
+
+        .pp-close:hover { background: rgba(255, 244, 230, .24); }
+
+        .pp-head {
+            text-align: center;
+            margin-bottom: 42px;
+        }
+
+        .pp-title {
+            font-size: clamp(28px, 7vw, 42px);
+            font-weight: 700;
+            color: #FFF4E6;
+            letter-spacing: .06em;
+            text-shadow: 0 0 26px rgba(255, 244, 230, .3);
+        }
+
+        .pp-desc {
+            margin-top: 12px;
+            font-size: clamp(13px, 3.4vw, 15px);
+            line-height: 1.9;
+            color: rgba(255, 244, 230, .55);
+        }
+
+        .pp-sec { margin-bottom: 46px; }
+
+        .pp-h {
+            margin: 0 0 6px;
+            font-size: clamp(22px, 5.5vw, 30px);
+            font-weight: 700;
+            color: #FFF4E6;
+            letter-spacing: .1em;
+        }
+
+        .pp-h3 {
+            margin: 0 0 6px;
+            font-size: clamp(15px, 4vw, 18px);
+            font-weight: 600;
+            color: rgba(255, 244, 230, .9);
+            letter-spacing: .05em;
+        }
+
+        .pp-sub {
+            margin: 0 0 20px;
+            font-size: 13px;
+            line-height: 1.85;
+            color: rgba(255, 244, 230, .45);
+            max-width: 46em;
+        }
+
+        .pp-group { margin-bottom: 38px; }
+
+        /* 我的线：白色圆点，跟年鉴的彩色点区分 */
+        .pp-line {
+            position: relative;
+            padding-left: 22px;
+        }
+
+        .pp-line::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 8px;
+            bottom: 8px;
+            width: 1px;
+            background: linear-gradient(to bottom,
+                rgba(255, 244, 230, .6),
+                rgba(255, 244, 230, .12));
+        }
+
+        .pp-node {
+            position: relative;
+            padding-bottom: 22px;
+        }
+
+        .pp-node:last-child { padding-bottom: 0; }
+
+        .pp-node::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 6px;
+            width: 9px;
+            height: 9px;
+            margin-left: -1px;
+            border-radius: 50%;
+            background: #FFF4E6;
+            box-shadow: 0 0 12px rgba(255, 244, 230, .8);
+        }
+
+        .pp-node-date {
+            font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+            font-size: 11px;
+            letter-spacing: .08em;
+            color: rgba(255, 244, 230, .42);
+        }
+
+        .pp-node-title {
+            display: block;
+            margin-top: 3px;
+            font-size: clamp(15px, 4vw, 17px);
+            color: #FFF4E6;
+            line-height: 1.5;
+            text-decoration: none;
+        }
+
+        a.pp-node-title:hover { text-decoration: underline; }
+
+        .pp-node-note {
+            margin-top: 3px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: rgba(255, 244, 230, .55);
+        }
+
+        .pp-node-meta {
+            margin-top: 4px;
+            font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+            font-size: 11px;
+            letter-spacing: .05em;
+            color: rgba(255, 244, 230, .3);
+        }
+
+        /* 大家的卡片：文字卡片，不放封面（不盗链） */
+        .pp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+            gap: 10px;
+        }
+
+        .pp-card {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 14px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 244, 230, .1);
+            background: rgba(255, 244, 230, .04);
+            text-decoration: none;
+            transition: background .22s, border-color .22s, transform .22s;
+        }
+
+        .pp-card:hover {
+            background: rgba(255, 244, 230, .09);
+            border-color: rgba(255, 244, 230, .26);
+            transform: translateY(-2px);
+        }
+
+        .pp-card-bv {
+            font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+            font-size: 10.5px;
+            letter-spacing: .1em;
+            color: rgba(255, 244, 230, .3);
+        }
+
+        .pp-card-title {
+            font-size: 14.5px;
+            line-height: 1.55;
+            color: rgba(255, 244, 230, .95);
+        }
+
+        .pp-card-meta {
+            font-size: 11.5px;
+            color: rgba(255, 244, 230, .45);
+        }
+
+        .pp-card-note {
+            font-size: 11.5px;
+            line-height: 1.6;
+            color: rgba(255, 244, 230, .62);
+            padding-top: 2px;
+            border-top: 1px dashed rgba(255, 244, 230, .12);
+            margin-top: 2px;
+        }
+
+        .pp-tip {
+            margin: 26px 0 0;
+            font-size: 11.5px;
+            line-height: 1.8;
+            color: rgba(255, 244, 230, .32);
+        }
+
+        .pp-empty {
+            padding: 60px 20px;
+            text-align: center;
+            color: rgba(255, 244, 230, .5);
+        }
+
+        .pp-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 244, 230, .1);
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.9;
+            color: rgba(255, 244, 230, .4);
         }
 
         /* ---------- 打字机长信 ---------- */
@@ -615,7 +1104,7 @@
             align-items: center;
             justify-content: center;
             padding: 24px;
-            background: rgba(6, 3, 16, .72);
+            background: rgba(9, 7, 7, .82);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
             opacity: 0;
@@ -634,11 +1123,13 @@
             max-height: 76vh;
             display: flex;
             flex-direction: column;
-            padding: 30px 28px 20px;
-            background: rgba(255, 255, 255, .055);
-            border: 1px solid rgba(255, 255, 255, .16);
-            border-radius: 16px;
-            box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+            padding: 32px 30px 20px;
+            background: linear-gradient(180deg,
+                rgba(255, 244, 230, .085) 0%,
+                rgba(255, 244, 230, .035) 100%);
+            border: 1px solid rgba(255, 244, 230, .13);
+            border-radius: 4px;
+            box-shadow: 0 30px 90px rgba(0, 0, 0, .6);
             cursor: pointer;
         }
 
@@ -650,27 +1141,29 @@
             height: 34px;
             font-size: 20px;
             line-height: 1;
-            color: #fff;
-            background: rgba(20, 10, 40, .9);
-            border: 1px solid rgba(255, 255, 255, .28);
+            color: #FFF4E6;
+            background: rgba(20, 16, 17, .96);
+            border: 1px solid rgba(255, 244, 230, .28);
             border-radius: 50%;
             cursor: pointer;
             transition: background .2s;
         }
 
-        .letter-close:hover { background: rgba(60, 30, 90, .95); }
+        .letter-close:hover { background: rgba(196, 43, 32, .95); }
 
         .letter-body {
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
 
+        /* 全站唯一的衬线。换字体是最省力也最有效的"私密"信号。 */
         .letter-body p {
-            margin: 0 0 15px;
-            font-size: clamp(15px, 4vw, 17px);
-            line-height: 2.05;
-            color: rgba(255, 255, 255, .92);
-            letter-spacing: .03em;
+            margin: 0 0 16px;
+            font-family: var(--serif);
+            font-size: clamp(15px, 4vw, 17.5px);
+            line-height: 2.1;
+            color: rgba(255, 244, 230, .9);
+            letter-spacing: .04em;
         }
 
         /* 正在打字的那一段末尾显示光标 */
@@ -681,7 +1174,7 @@
             height: 1em;
             margin-left: 3px;
             vertical-align: -0.15em;
-            background: rgba(255, 190, 215, .95);
+            background: rgba(226, 58, 46, .95);
             animation: caret 1s step-end infinite;
         }
 
@@ -706,17 +1199,17 @@
             padding: 7px 16px;
             font-size: 13px;
             font-family: inherit;
-            color: rgba(255, 255, 255, .7);
+            color: rgba(255, 244, 230, .7);
             background: transparent;
-            border: 1px solid rgba(255, 255, 255, .25);
+            border: 1px solid rgba(255, 244, 230, .25);
             border-radius: 999px;
             cursor: pointer;
             transition: background .2s, color .2s;
         }
 
         .letter-skip:hover {
-            background: rgba(255, 255, 255, .12);
-            color: #fff;
+            background: rgba(255, 244, 230, .12);
+            color: #FFF4E6;
         }
 
         /* 打完字后「跳过」改为「关闭」语义，并浮出主按钮 */
@@ -727,18 +1220,18 @@
             padding: 9px 22px;
             font-size: 14px;
             font-family: inherit;
-            color: #2b1055;
-            background: linear-gradient(135deg, #ffd9e8, #ffeec2);
+            color: #0B0909;
+            background: linear-gradient(135deg, #FFB271, #FF5546);
             border: none;
             border-radius: 999px;
             cursor: pointer;
-            box-shadow: 0 6px 22px rgba(255, 170, 210, .35);
+            box-shadow: 0 6px 22px rgba(226, 58, 46, .35);
             transition: transform .2s, box-shadow .2s;
         }
 
         .letter-done:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 28px rgba(255, 170, 210, .5);
+            box-shadow: 0 10px 30px rgba(226, 58, 46, .48);
         }
 
         #letter.letter--done .letter-done {
@@ -768,9 +1261,9 @@
             width: 62px;
             padding: 9px 0;
             font-family: inherit;
-            color: rgba(255, 255, 255, .6);
-            background: rgba(255, 255, 255, .07);
-            border: 1px solid rgba(255, 255, 255, .16);
+            color: rgba(255, 244, 230, .6);
+            background: rgba(255, 244, 230, .07);
+            border: 1px solid rgba(255, 244, 230, .16);
             border-radius: 14px;
             cursor: pointer;
             backdrop-filter: blur(6px);
@@ -791,9 +1284,9 @@
         }
 
         .triple-btn--on {
-            color: #fff;
-            background: rgba(255, 160, 200, .22);
-            border-color: rgba(255, 160, 200, .6);
+            color: #FFF4E6;
+            background: rgba(226, 58, 46, .2);
+            border-color: rgba(226, 58, 46, .58);
         }
 
         .triple-btn--on .triple-icon { filter: none; }
@@ -840,8 +1333,8 @@
             pointer-events: none;
             opacity: 0;
             background: radial-gradient(circle at 50% 50%,
-                        rgba(255, 255, 255, .9) 0%,
-                        rgba(255, 220, 240, .45) 35%,
+                        rgba(255, 244, 230, .9) 0%,
+                        rgba(255, 176, 140, .42) 35%,
                         transparent 70%);
         }
 
@@ -869,32 +1362,50 @@
 <div id="flash"></div>
 
 <div id="intro">
+    <div class="mark"><span class="dot"></span><span>生日这天</span></div>
     <div id="intro-title"></div>
     <div id="intro-hint"></div>
 </div>
 
 <!-- 倒数页：非生日期间显示，代替引导层 -->
 <div id="countdown-page">
+    <div class="mark"><span class="dot"></span><span id="cd-status">未开播</span></div>
     <div id="cd-label"></div>
     <div id="cd-number"><span id="cd-days">--</span><span id="cd-unit"></span></div>
     <div id="cd-today"></div>
     <div id="cd-actions">
-        <button class="fab fab--static" id="btn-timeline-cd" type="button">🕰️ <span>往年回忆</span></button>
+        <button class="fab fab--static" id="btn-timeline-cd" type="button"><i class="fab-ico">⊙</i><span>往年回忆</span></button>
+        <button class="fab fab--static" id="btn-people-cd" type="button"><i class="fab-ico">♡</i><span>陪你的人</span></button>
     </div>
 </div>
 
-<button class="fab" id="btn-mute" type="button">🔊 <span>音乐开</span></button>
-<button class="fab" id="btn-danmaku" type="button">💬 <span>弹幕开</span></button>
-<button class="fab" id="btn-album" type="button">📷 <span>回忆相册</span></button>
-<button class="fab" id="btn-timeline" type="button">🕰️ <span>时光轴</span></button>
+<button class="fab" id="btn-mute" type="button"><i class="fab-ico">♪</i><span>音乐开</span></button>
+<button class="fab" id="btn-danmaku" type="button"><i class="fab-ico">≋</i><span>弹幕开</span></button>
+<button class="fab" id="btn-album" type="button"><i class="fab-ico">▤</i><span>回忆相册</span></button>
+<button class="fab" id="btn-timeline" type="button"><i class="fab-ico">⊙</i><span>时光轴</span></button>
+<button class="fab" id="btn-people" type="button"><i class="fab-ico">♡</i><span>陪你的人</span></button>
 
 <div id="toast"></div>
 
 <script src="js/config.js"></script>
 <script src="js/hb.js"></script>
 
-<!-- 每年的内容：新增一年就在这里加一行 -->
-<script src="data/2026.js"></script>
+<!-- 每年的内容：年份清单在 data/years.js，新增一年只改那一个文件 -->
+<script src="data/years.js"></script>
+<script>
+    // 按清单同步加载各年份数据。
+    // 这里用 document.write 而不是动态 appendChild，是因为它保证
+    // 脚本按顺序同步执行 —— 后面的代码要用到已经注册好的年份。
+    (function () {
+        var list = (window.HB_YEARS || []).slice().sort(function (a, b) { return a - b; });
+        for (var i = 0; i < list.length; i++) {
+            document.write('<script src="data/' + list[i] + '.js"><\/script>');
+        }
+    }());
+</script>
+<script src="data/history.js"></script>
+<script src="data/me.js"></script>
+<script src="data/fandom.js"></script>
 
 <script>
     // ---------- 环境判断 ----------
@@ -1115,7 +1626,11 @@
         }
     });
 
-    // ---------- 背景星空 ----------
+    // ---------- 背景：舞台灯里的浮尘 ----------
+    //
+    // v1 这里画的是星空。星空是所有人的，直播间的暗场才是她的。
+    // 现在改成"一束光里飘着的尘"：极慢地上升，越接近光源越亮，
+    // 落到底部就自然淡掉。比星星安静，也更像一间开着摄像头的房间。
 
     (function () {
         var el = document.getElementById('stars');
@@ -1126,44 +1641,68 @@
         }
 
         var ctx = el.getContext('2d'),
-            stars = [];
+            motes = [],
+            reduced = window.matchMedia &&
+                      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function spawn(anywhere) {
+            // 横向向中间聚：光锥里才看得见尘埃。
+            // 三个随机数取平均 = 近似正态，中间密、两侧稀。
+            var bias = (Math.random() + Math.random() + Math.random()) / 3;
+
+            return {
+                x: el.width * (0.06 + 0.88 * bias),
+                y: anywhere ? Math.random() * el.height : el.height + 6,
+                r: Math.random() * 0.9 + 0.35,
+                a: Math.random() * 0.45 + 0.12,
+                v: Math.random() * 0.11 + 0.03,     // 上升速度，像素/帧
+                sway: Math.random() * Math.PI * 2,  // 横向摆动相位
+                amp: Math.random() * 0.5 + 0.2
+            };
+        }
 
         function seed() {
             el.width = el.clientWidth;
             el.height = el.clientHeight;
-            stars = [];
+            motes = [];
 
-            // 星星数量随屏幕面积缩放，小屏不至于过密
-            var count = Math.round(el.width * el.height / 9000);
-            for (var i = 0; i < count; i++) {
-                stars.push({
-                    x: Math.random() * el.width,
-                    y: Math.random() * el.height,
-                    r: Math.random() * 1.1 + 0.3,
-                    a: Math.random(),
-                    v: Math.random() * 0.015 + 0.004
-                });
-            }
+            // 数量随面积缩放；比星空稀得多，尘埃本来就该少
+            var count = Math.round(el.width * el.height / 14000);
+            for (var i = 0; i < count; i++) motes.push(spawn(true));
         }
 
         function draw() {
             ctx.clearRect(0, 0, el.width, el.height);
 
-            for (var i = 0; i < stars.length; i++) {
-                var s = stars[i];
+            for (var i = 0; i < motes.length; i++) {
+                var m = motes[i];
 
-                s.a += s.v;
-                if (s.a > 1 || s.a < 0.1) s.v = -s.v;   // 呼吸闪烁
+                m.y -= m.v;
+                m.sway += 0.006;
 
-                ctx.globalAlpha = s.a;
-                ctx.fillStyle = '#fff';
+                if (m.y < -8) {
+                    motes[i] = spawn(false);
+                    continue;
+                }
+
+                // 越靠近画面中部越亮，顶部和底部都淡出
+                var t = 1 - m.y / el.height,
+                    fade = Math.sin(Math.PI * Math.min(1, Math.max(0, t))),
+                    alpha = m.a * fade;
+
+                if (alpha <= 0.01) continue;
+
+                ctx.globalAlpha = alpha;
+                // 大部分是暖金，少量红 —— 红的密度一高就变成"特效"了
+                ctx.fillStyle = (i % 4 === 0) ? '#FF5546' : '#FFD9A8';
                 ctx.beginPath();
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.arc(m.x + Math.sin(m.sway) * m.amp, m.y, m.r, 0, Math.PI * 2);
                 ctx.fill();
             }
 
             ctx.globalAlpha = 1;
-            requestAnimationFrame(draw);
+
+            if (!reduced) requestAnimationFrame(draw);
         }
 
         seed();
@@ -1191,8 +1730,31 @@
         seeds=new Array();
         sparkPics=new Array();
         s = "./NYE/";
+
+        // 十张 spark 贴图是十年前的彩虹配色，跟这一版的辣椒红打架。
+        // 以前是给整个 #canvas 加 CSS 滤镜压成暖金，但那等于让浏览器
+        // 每帧重算一次全屏颜色矩阵：实测 61fps → 29fps，烟花一停立刻回到 61。
+        // 改成加载时把每张贴图烘一遍，颜色落到像素上，之后绘制零额外开销。
+        var TINT = 'sepia(0.88) saturate(1.6)';
+
+        function tintSpark(img, idx){
+            if(!img.naturalWidth || !sparkPics.length) return;
+            var c=document.createElement('canvas');
+            c.width=img.naturalWidth;
+            c.height=img.naturalHeight;
+            var g=c.getContext('2d');
+            g.filter=TINT;
+            g.drawImage(img,0,0);
+            sparkPics[idx]=c;
+        }
+
         for(i=1;i<=10;++i){
             sparkPic=new Image();
+            // 先占位：图没加载完之前要是已经开始放烟花，会拿到 Image，
+            // 颜色偏彩虹但能画；load 完就地换成烘好的版本。
+            sparkPic.onload=(function(index){
+                return function(){ tintSpark(this, index); };
+            }(i-1));
             sparkPic.src=s+"spark"+i+".png";
             sparkPics.push(sparkPic);
         }
@@ -1376,7 +1938,7 @@
 
         ctx.clearRect(0,0,cx*2,cy*2);
 
-        ctx.fillStyle="#ff8";
+        ctx.fillStyle="#FFA53D";
         for(i=-100;i<100;i+=gridStepX){
             for(j=-100;j<100;j+=gridStepZ){
                 x=i;z=j;y=25;
@@ -1384,7 +1946,7 @@
                 if(point.d!=-1){
                     size=250/(1+point.d);
                     d = Math.sqrt(x * x + z * z);
-                    a = 0.75 - Math.pow(d / 100, 6) * 0.75;
+                    a = 0.5 - Math.pow(d / 100, 6) * 0.5;
                     if(a>0){
                         ctx.globalAlpha = a;
                         ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
@@ -1413,12 +1975,12 @@
                         case sparkPics[0]:ctx.strokeStyle="#f84";break;
                         case sparkPics[1]:ctx.strokeStyle="#84f";break;
                         case sparkPics[2]:ctx.strokeStyle="#8ff";break;
-                        case sparkPics[3]:ctx.strokeStyle="#fff";break;
+                        case sparkPics[3]:ctx.strokeStyle="#FFF4E6";break;
                         case sparkPics[4]:ctx.strokeStyle="#4f8";break;
                         case sparkPics[5]:ctx.strokeStyle="#f44";break;
                         case sparkPics[6]:ctx.strokeStyle="#f84";break;
                         case sparkPics[7]:ctx.strokeStyle="#84f";break;
-                        case sparkPics[8]:ctx.strokeStyle="#fff";break;
+                        case sparkPics[8]:ctx.strokeStyle="#FFF4E6";break;
                         case sparkPics[9]:ctx.strokeStyle="#44f";break;
                     }
                     for(j=sparks[i].trail.length-1;j>=0;--j){
@@ -1499,6 +2061,7 @@
 
 <script src="js/carousel.js"></script>
 <script src="js/timeline.js"></script>
+<script src="js/people.js"></script>
 <script src="js/danmaku.js"></script>
 <script src="js/letter.js"></script>
 <script>
@@ -1508,6 +2071,8 @@
         var album = document.getElementById('btn-album'),
             tl = document.getElementById('btn-timeline'),
             tlCd = document.getElementById('btn-timeline-cd'),
+            ppl = document.getElementById('btn-people'),
+            pplCd = document.getElementById('btn-people-cd'),
             dm = document.getElementById('btn-danmaku');
 
         if (Carousel.hasPhotos()) {
@@ -1526,6 +2091,20 @@
 
         tl.addEventListener('click', openTimeline);
         tlCd.addEventListener('click', openTimeline);
+
+        // 陪你的人：我的线 + 大家留下的。没内容就把入口藏掉。
+        function openPeople(e) {
+            e.stopPropagation();
+            People.open();
+        }
+
+        if (People.available()) {
+            ppl.addEventListener('click', openPeople);
+            pplCd.addEventListener('click', openPeople);
+        } else {
+            ppl.remove();
+            pplCd.remove();
+        }
 
         // 弹幕开关。当年没配弹幕就不显示这个按钮。
         var y = HB.featured();
@@ -1567,11 +2146,12 @@
         page.classList.add('cd--visible');
 
         document.getElementById('cd-label').textContent = SITE.fill(cd.title || '');
+        document.getElementById('cd-status').textContent = days === 0 ? '开播了' : '未开播';
 
         if (days === 0) {
             // 生日当天但已过庆祝期（celebrateDays 设为 0 时才可能）
             document.getElementById('cd-number').style.display = 'none';
-            document.getElementById('cd-today').textContent = cd.todayText || '就是今天 🎉';
+            document.getElementById('cd-today').textContent = cd.todayText || '就是今天';
         } else {
             document.getElementById('cd-today').style.display = 'none';
             document.getElementById('cd-days').textContent = days;
@@ -1588,6 +2168,14 @@
     // 演出已经开始，这时再 init(1) 会把它重置回待机图标 —— 必须跳过。
     window.addEventListener('load', function () {
         if (started) return;
+
+        // ?auto 供开发调试：跳过引导层直接开演，便于无头浏览器截图。
+        // 可配合 ?a=#portrait 直接定位到指定的一帧。
+        if (/[?&]auto\b/.test(window.location.search)) {
+            start();
+            return;
+        }
+
         init(1);
     });
 </script>
