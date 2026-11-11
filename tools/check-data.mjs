@@ -192,11 +192,44 @@ for (const year of YEARS) {
   });
 
   // 私密长信
-  const letter = (d.letter || []).filter((s) => s && String(s).trim());
-  if (!letter.length) {
+  //
+  // 这里不要再 filter 掉空行 —— 空行就是分段。之前 check-data 和 letter.js
+  // 各 filter 了一次，三封信写好的段落全被吃掉，页面上是一整片连着的字，
+  // 而校验一声不响。现在按原样检查。
+  const rawLetter = Array.isArray(d.letter) ? d.letter : [];
+  const letterLines = rawLetter.filter((s) => s && String(s).trim());
+
+  if (!letterLines.length) {
     warn(`${tag}：letter 还是空的（这一年的信没写）`);
   } else {
-    letter.forEach((line, i) => checkText(String(line), `${tag} letter[${i}]`));
+    let blankRun = 0;
+    let hasGap = false;
+
+    rawLetter.forEach((line, i) => {
+      const t = String(line == null ? '' : line);
+
+      if (!t.trim()) {
+        hasGap = true;
+        blankRun++;
+        if (blankRun > 1) {
+          warn(`${tag} letter[${i}]：连续空行，一个空行就够分段了`);
+        }
+        return;
+      }
+
+      blankRun = 0;
+      checkText(t, `${tag} letter[${i}]`);
+
+      // 信纸可用行宽约 560px，17px 字号下一行放得下 31 字。
+      // 超了就会折行，"一句一行"的手写感会断。
+      if (t.length > 32) {
+        warn(`${tag} letter[${i}]：${t.length} 字，超过 32 会折行 —— ${t.slice(0, 16)}…`);
+      }
+    });
+
+    if (!hasGap && letterLines.length > 3) {
+      warn(`${tag}：letter 有 ${letterLines.length} 行，但没有任何分段（缺 '' 空行元素）`);
+    }
   }
 
   // 坐标
