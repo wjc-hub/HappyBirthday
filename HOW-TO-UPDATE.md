@@ -13,11 +13,15 @@
 cp data/_template.js data/2027.js
 
 # 3. 编辑 data/2027.js：把第一行的 2099 改成 2027，然后填内容
+#    至少写 3 条 milestones + headline
 
-# 4. 编辑 index.html，搜索「每年的内容」，在下面加一行：
-#    <script src="data/2027.js"></script>
+# 4. 编辑 data/years.js，在数组里加一个 2027（唯一要手改的地方）
+#    window.HB_YEARS = [2024, 2025, 2026, 2027];
 
-# 5. 推上去
+# 5. 校验（有错会直接报出来，别跳过）
+node tools/check-data.mjs
+
+# 6. 推上去
 git add .
 git commit -m "2027"
 git push
@@ -64,7 +68,7 @@ HB.year(2099, {     // ← 改成 2027
 
 | 字段 | 填什么 |
 |---|---|
-| `messages` | 粒子文字祝福语，每条别超过 6 个字 |
+| `messages` | 粒子文字祝福语。**前三条（祝 / {name} / 生日快乐）不要改，那是仪式**；后两条填这一年的：一条刻度（数字或只属于这一年的事），一条落点（优先用她自己说过的话）。每条别超过 6 个字 |
 | `photos` | 照片路径和说明 |
 | `quotes` | **她说过的话**，带场合和日期 |
 | `letter` | 你想对她说的话，可以写长 |
@@ -91,24 +95,31 @@ letter: [
 ],
 ```
 
-### 第 4 步：让页面加载新文件
+### 第 4 步：把新年份写进清单
 
-打开 `index.html`，搜索 `每年的内容`，会看到：
+打开 `data/years.js`，在数组末尾加上新年份：
 
-```html
-<!-- 每年的内容：新增一年就在这里加一行 -->
-<script src="data/2026.js"></script>
+```js
+window.HB_YEARS = [2024, 2025, 2026, 2027];
 ```
 
-在下面加一行：
+**这是唯一需要手改的地方。** 页面会按这个清单自动加载 `data/YYYY.js`。
 
-```html
-<script src="data/2027.js"></script>
+> 老版本这里要去 `index.html` 里加 `<script>` 标签，忘了不报错、那年就是不出来。
+> 现在改成清单文件，而且 `check-data` 会检查「清单里的年份是否真的有对应文件」。
+
+### 第 5 步：校验
+
+```bash
+node tools/check-data.mjs
 ```
 
-**这一步容易忘。** 忘了的话新年份不会显示，但页面不会报错，所以不容易发现。
+它会检查：年份有没有对应文件、日期格式对不对、图片是不是真的存在、
+有没有占位文案泄漏到页面上、必填项（3 条里程碑 + headline）缺没缺。
 
-### 第 5 步：推送上线
+**报错就别推。** 提醒（`!`）可以看情况处理，比如信还没写。
+
+### 第 6 步：推送上线
 
 ```bash
 git add .
@@ -155,7 +166,7 @@ http://127.0.0.1:8765/?celebrate
 访客每次都会拿到最新的 `index.html` 和 `js/`、`data/` 文件。
 
 **问：新加的年份不显示？**
-第 4 步忘了 —— 检查 `index.html` 里有没有加对应的 `<script>` 行。
+第 4 步忘了 —— 检查 `data/years.js` 里有没有加上那一年。跑一遍 `node tools/check-data.mjs` 也会直接告诉你是哪年缺文件。
 
 **问：某年素材不全，只有照片没有她的话？**
 没问题，把 `quotes` 留成空数组 `[]` 即可，时光轴会自动跳过那一块。
@@ -180,10 +191,21 @@ js/hb.js            核心逻辑：判断今天该显示什么
 js/index.js         粒子文字引擎
 js/carousel.js      相册轮播
 js/timeline.js      往年时光轴
+js/people.js        「陪你的人」：我的线 + 大家留下的
+data/years.js       年份清单 ← 唯一要手改的清单
 data/_template.js   年份模板 ← 每年复制它
+data/history.js     粉丝曲线（手填采样点，一年加一两个）
+data/me.js          我的关系线（只有我能写）
+data/fandom.js      大家留下的录播/切片/二创
 data/2026.js        2026 年的内容
 images/             照片
+tools/check-data.mjs 内容校验 ← 推之前跑一遍
 ```
 
-**你每年只需要动 `data/` 和 `images/`，加上 `index.html` 里的一行。**
-其余文件是逻辑，不用碰。
+**每年只需要动三处**：`data/YYYY.js`（内容）、`data/years.js`（加一年）、`images/YYYY/`（照片）。
+
+`data/me.js` 和 `data/fandom.js` 不用每年改——想起来的时候往里加一条就行。
+加了之后同样跑 `node tools/check-data.mjs`，它会检查 BV 号格式和日期。
+
+**为什么 fandom 只放链接不放视频**：那些作品属于发布它们的人。
+搬运会挂图，也会让作品脱离原作者的主页。

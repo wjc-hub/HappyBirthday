@@ -3,6 +3,9 @@
 .vscode/
 *.iml
 
+# 助手工作目录（会话记忆、临时截图），不入库
+.workbuddy/
+
 # 操作系统生成的文件
 .DS_Store
 Thumbs.db
