@@ -44,6 +44,10 @@
   （见 paintChars）。整行淡入读起来是"字幕被切上来"，逐字落位才像
   "有人在黑暗里把这句念出来"。
 
+  而且落完之后**不擦掉**：这一行是刻度，它一直挂在画面上，
+  直到下一个刻度把它顶掉。中途擦掉的话，两行之间就是空白 ——
+  观众看到的是"屏幕在闪"，不是"这条线在往前走"（见 paint）。
+
   跳过
   ----
   双击，不是单击。这一层铺满全屏，而开场里最常被点的其实是右上角的
@@ -76,6 +80,11 @@ var Opening = (function () {
       progress = 0,
       skipTimer = null,
       hintTimer = null,
+      swapTimer = null,    // 换句时那句"旧行先退"的计时
+      charStart = 0,       // 当前这一句开始落位的时刻
+      charStagger = 62,    // 字与字之间隔多久（数字行 62ms，落款 118ms）
+      charDur = 950,       // 单个字落完要多久
+      charLive = false,    // 还有字没落完
       lastTap = 0,         // 上一次"想跳过"的点击时刻
       skipping = false,
       skipAt = 0,
@@ -627,6 +636,7 @@ var Opening = (function () {
     ctx.globalCompositeOperation = 'source-over';
 
     updateLabel(t, grow);
+    tickChars();
     syncCity(grow);
   }
 
@@ -664,7 +674,12 @@ var Opening = (function () {
   // 坑：空格不能用普通空格。span 里的空格在 inline-block 下会被折叠，
   // 一行「2026-11 · 138.6 万人」会挤成「2026-11·138.6万人」。
   // 换行同理 —— 用 nbsp 保住。
-  function paintChars(text, stagger) {
+  //
+  // 落位的时间戳记在这里，逐帧由 tickChars 推。不用 CSS animation：
+  // 「每个字一条 animation + 各自 delay」在字多的时候会有几个字停在
+  // 中间态（计算样式已经是终值，画面上还是暗的），而且 15 条动画
+  // 各自占一个合成层。JS 写 style 最多也就十几个字，落完就停。
+  function paintChars(text, stagger, dur) {
     var i, ch, sp;
 
     label.textContent = '';
@@ -674,10 +689,52 @@ var Opening = (function () {
 
       sp = document.createElement('span');
       sp.className = 'ol-ch';
-      sp.style.setProperty('--i', i);
-      sp.style.setProperty('--gap', stagger + 'ms');
       sp.textContent = (ch === ' ' || ch === '\u3000') ? '\u00a0' : ch;
       label.appendChild(sp);
+    }
+
+    charStagger = stagger;
+    charDur = dur || 950;
+    charStart = performance.now();
+    charLive = true;
+  }
+
+  // 一个字：从下方 12px 浮上来，60% 的地方就全亮。
+  //
+  // 不缩放 —— 缩放会让每个字在自己的格子里膨胀再缩回，
+  // 一排字同时膨胀，看起来像在呼吸，不像在落位。
+  // 也不做 blur：11px 的字配 6px 散焦，落下之前等于完全看不见，
+  // 读起来是"缺字"而不是"虚化"。
+  function tickChars() {
+    if (!charLive || !label) return;
+
+    var now = performance.now(),
+        kids = label.children,
+        n = kids.length,
+        settled = 0,
+        i, p, e, el;
+
+    for (i = 0; i < n; i++) {
+      el = kids[i];
+
+      p = (now - charStart - i * charStagger) / charDur;
+
+      if (p >= 1) { settled++; continue; }
+      if (p <= 0) continue;          // 还没轮到，保持 CSS 的 opacity: 0
+
+      e = 1 - Math.pow(1 - p, 3);    // easeOutCubic
+
+      el.style.opacity = p >= 0.6 ? '1' : e.toFixed(3);
+      el.style.transform = 'translateY(' + ((1 - e) * 12).toFixed(2) + 'px)';
+    }
+
+    if (settled === n) {
+      // 落齐了：把终态写死，然后停手，不再每帧碰 DOM。
+      for (i = 0; i < n; i++) {
+        kids[i].style.opacity = '1';
+        kids[i].style.transform = 'none';
+      }
+      charLive = false;
     }
   }
 
@@ -707,26 +764,54 @@ var Opening = (function () {
 
     if (idx < 0) {
       label.textContent = '';
-      label.classList.remove('opening-label--in', 'opening-label--hold', 'opening-label--final');
+      label.classList.remove('opening-label--final', 'opening-label--swap');
       return;
     }
 
     var isFinal = idx >= series().length,
         text = isFinal ? finalLine() : markText(grow);
 
+    paint(text, isFinal);
+  }
+
+  // 换一句。
+  //
+  // 字落完之后**不擦掉**：这个刻度就一直挂在画面上，直到下一个刻度把它顶掉。
+  // 采样点是按真实日期排的，2024 年那九个月两行之间隔着十几秒 ——
+  // 原来"字落齐 → 整行淡出 → 空着 → 再写一行"，读起来是屏幕在闪，
+  // 而不是"这条线一直在往前走"。
+  //
+  // 换的那一下也不是直接清空重建：旧行先退 0.18 秒，新的再落位。
+  // 直接换是"啪"一下闪掉，像电视换台；有了这 0.18 秒才是"翻篇"。
+  function paint(text, isFinal) {
     // 落款那十一个字比数字行重，所以字与字之间留得久一点：
     // 62ms 是"念数字"的节奏，118ms 是"说一句话"的节奏。
-    paintChars(text, isFinal ? 118 : 62);
-    label.classList.remove('opening-label--in', 'opening-label--hold', 'opening-label--final');
-    void label.offsetWidth;          // 强制重排，让动画能重播
+    // 单字时长也一起放慢一点（0.95s → 1.15s），否则字距一拉开、
+    // 每个字自己却落得飞快，读起来像在催。
+    var stagger = isFinal ? 118 : 62,
+        dur = isFinal ? 1150 : 950;
 
-    // 最后一句话不淡出。它要一直撑到光收拢完成，
-    // 否则整段演出在最后四秒是"没有话可说"的。
-    label.classList.add(isFinal ? 'opening-label--hold' : 'opening-label--in');
+    function build() {
+      // 落款那一句换字体、放大（见 index.html 的 --final）。
+      // 先换样式再排字：字体一变，每个字的宽度就变了，
+      // 晚加会把已经落好的字挤着挪一下。
+      label.classList.remove('opening-label--final', 'opening-label--swap');
+      if (isFinal) label.classList.add('opening-label--final');
 
-    // 落款那一句换字体、放大（见 index.html 的 --final）。
-    // 只在最后一帧加，数字那几行仍然是等宽的刻度。
-    if (isFinal) label.classList.add('opening-label--final');
+      paintChars(text, stagger, dur);
+    }
+
+    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+
+    if (label.firstChild) {
+      label.classList.add('opening-label--swap');
+      swapTimer = setTimeout(function () {
+        swapTimer = null;
+        build();
+      }, 180);
+    } else {
+      build();
+    }
   }
 
   // ---------- 生命周期 ----------
@@ -741,6 +826,7 @@ var Opening = (function () {
 
     if (skipTimer) { clearTimeout(skipTimer); skipTimer = null; }
     if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
     document.removeEventListener('click', onDocClick);
     window.removeEventListener('resize', onResize);
     hideHint();
@@ -803,6 +889,12 @@ var Opening = (function () {
     risers.length = 0;
     markerIdx = -1;
     skipping = false;
+    charLive = false;
+    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+    if (label) {
+      label.textContent = '';
+      label.classList.remove('opening-label--final', 'opening-label--swap');
+    }
     skipAt = 0;
     lastTap = 0;
     pulseIdx = -1;

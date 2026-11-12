@@ -267,33 +267,31 @@
         }
 
         /* 一个字一个格。宽度先占住，所以字是一个一个亮起来，
-           而不是一个一个把后面的字往右挤 —— 后者读起来像打字机的排版事故。 */
+           而不是一个一个把后面的字往右挤 —— 后者读起来像打字机的排版事故。
+
+           落位不用 CSS animation，由 js/opening.js 每帧写 opacity /
+           transform（见 tickChars）。理由是这套"每个字一条 animation +
+           各自 delay"的写法，在字多的时候会有一部分字停在中间态：
+           计算样式说已经到 100%，画面上却还是暗的。
+           JS 驱动慢不了多少（最多 15 个字，落完就停手），
+           但每一帧的状态都是确定的。 */
         #opening-label .ol-ch {
             display: inline-block;
             opacity: 0;
-            transform: translateY(10px);
-            filter: blur(6px);
         }
 
-        #opening-label.opening-label--in .ol-ch,
-        #opening-label.opening-label--hold .ol-ch {
-            animation: openingCharIn .95s cubic-bezier(.22, .68, .2, 1) both;
-            animation-delay: calc(var(--i) * var(--gap, 62ms));
-        }
+        /* 字落完之后就留在那里，不再自己淡出。
+           
+           原来这一行有个 3.9 秒的淡出动画：字刚落齐，整行就开始退。
+           但采样点是按真实日期排的，2024 年那九个月两行之间隔着十几秒 ——
+           于是观众看到的是"写完一行、擦掉、空着、再写一行"。
+           刻度不该擦掉。它就该一直挂在那儿，直到下一个刻度把它顶掉。 */
 
-        /* 落款的字落得慢一点、稳一点。数字是念出来的，这句话是说出来的。 */
-        #opening-label.opening-label--final .ol-ch {
-            animation-duration: 1.15s;
-        }
-
-        #opening-label.opening-label--in {
-            animation: openingLabelFade 3.9s ease forwards;
-        }
-
-        /* 最后一句：不淡出，一直留到光收拢完成。
-           收尾时刻画面上应该有一句话压着，而不是只剩一堆渐暗的点。 */
-        #opening-label.opening-label--hold {
-            opacity: 1;
+        /* 换句：旧的一句先退 0.18 秒，新的再落位。
+           直接清空重建是"啪"一下闪掉，像电视换台；
+           有了这 0.18 秒，读起来才是"这一行翻篇了"。 */
+        #opening-label.opening-label--swap {
+            animation: openingLabelOut .18s ease forwards;
         }
 
         /* 最后一句是「落款」，不是「刻度」。
@@ -349,20 +347,13 @@
 
         #opening-hint.hint--in { opacity: 1; }
 
-        /* 一个字：从下方 10px、散焦 6px 的地方落到自己的位置上。
-           不缩放 —— 缩放会让每个字在自己的格子里膨胀再缩回，
-           一排字同时膨胀，看起来像在呼吸，不像在落位。 */
-        @keyframes openingCharIn {
-            0%   { opacity: 0; transform: translateY(10px); filter: blur(6px); }
-            55%  { opacity: 1; }
-            100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
-        }
+        /* 字怎么落位，见 js/opening.js 的 tickChars：
+           从下方 12px 浮上来、60% 处全亮。参数在那边，样式这边只管排布。 */
 
-        /* 父层只做退场。前面的时间留给字自己出现，
-           整行一起淡的话，刚看到第三个字它就暗下去了。 */
-        @keyframes openingLabelFade {
-            0%, 58% { opacity: 1; }
-            100%    { opacity: 0; }
+        /* 换句时旧的一行退场。只干这一件事 —— 出现和停留都不归它管。 */
+        @keyframes openingLabelOut {
+            from { opacity: 1; }
+            to   { opacity: 0; }
         }
 
         /* 注意：字距始终不动。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
