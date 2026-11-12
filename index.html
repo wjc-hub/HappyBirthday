@@ -274,6 +274,59 @@
             animation: openingLabelHold 2s ease forwards;
         }
 
+        /* 最后一句是「落款」，不是「刻度」。
+           前面几行是 mono 的数字（2026-11 · 138.6 万人），读的是量；
+           这一句是整段演出的收束，换成宋体、字距收紧、字号放大，
+           读的是重量。
+           
+           为什么必须换字体：mono 排中文每个字都占一个等宽格，
+           「一百三十八万人，今晚都在」排出来字与字之间是散的，
+           像表格；宋体连起来才有"写完一句话"的停顿感。 */
+        #opening-label.opening-label--final {
+            font-family: var(--serif);
+            font-size: 18px;
+            letter-spacing: .1em;
+            text-indent: .1em;
+            color: rgba(255, 244, 218, .97);
+            text-shadow:
+                0 0 26px rgba(255, 186, 112, .70),
+                0 0 60px rgba(255, 148, 76, .40),
+                0 2px 14px rgba(12, 6, 4, .95);
+        }
+
+        /* 跳过提示。
+           只在"已经点过一下"之后出现 —— 没点的时候不出现，
+           是因为开场是一次性的仪式，任何常驻提示都是打扰。
+           点了才出现，等于把"还有第二下"这件事告诉正在动手的人。
+
+           位置放右下角，不放底部居中：底部居中那一带是「点击右上角的
+           按钮可以开启音乐」那条 toast 的地盘，两个东西会叠在一起。
+           角落也更符合"跳过"的惯性位置。 */
+        #opening-hint {
+            position: absolute;
+            right: 24px;
+            bottom: 26px;
+            text-align: right;
+            font-family: var(--mono);
+            font-size: 11px;
+            line-height: 1;
+            letter-spacing: .18em;
+            /* 这一句落在城市剪影上 —— 那块背景是一排亮点，纯文字会被吃掉。
+               给一层极淡的底把它托起来，形状跟站内其它按钮一致（胶囊）。
+               颜色比按钮暗一档：它是提示，不是控件。 */
+            padding: 10px 15px;
+            border-radius: 999px;
+            background: rgba(18, 9, 5, .62);
+            border: 1px solid rgba(255, 214, 160, .20);
+            color: rgba(255, 240, 214, .94);
+            text-shadow: 0 1px 8px rgba(12, 6, 4, .9);
+            opacity: 0;
+            transition: opacity .4s ease;
+            pointer-events: none;
+        }
+
+        #opening-hint.hint--in { opacity: 1; }
+
         /* 出现要慢、收尾要更慢。数字是"被念出来"的，不是"跳出来"的。 */
         @keyframes openingLabel {
             0%   { opacity: 0; transform: translateY(7px); }
@@ -292,6 +345,12 @@
 
         @media (max-height: 620px) {
             #opening-label { bottom: 26vh; font-size: 10px; }
+            #opening-label.opening-label--final { font-size: 15px; }
+            #opening-hint { right: 16px; bottom: 18px; }
+        }
+
+        @media (max-width: 640px) {
+            #opening-label.opening-label--final { font-size: 16px; }
         }
 
         /* ---------- 画布 ---------- */
@@ -1817,6 +1876,7 @@
 <div id="opening" aria-hidden="true">
     <canvas id="opening-canvas"></canvas>
     <div id="opening-label"></div>
+    <div id="opening-hint">再点一下跳过</div>
 </div>
 
 <canvas id="canvas"></canvas>

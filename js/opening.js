@@ -23,15 +23,27 @@
   --------
   屏幕是一扇窗。
 
-    0.0s  一片黑，只有一颗光点在呼吸         ← 一个人
+    0.0s  一片黑，一颗光点被点亮、开始呼吸   ← 一个人
     2.6s  光点散成几颗                       ← 有人来了
     4.0s  光点开始从城市底部升起、留在天上   ← 灯一盏盏亮
-   22.0s  按真实粉丝曲线长到满屏
-   26.0s  所有光一起向上涌
-   29.5s  淡出，把画面交给粒子字
+    22.0s  按真实粉丝曲线长到满屏
+    26.0s  所有光一起向上涌
+    29.5s  淡出，把画面交给粒子字
 
   光点全部从画面下沿升起（那是城市的位置），不是凭空出现在天上。
   "从地上长出来"和"天上本来就有"是两种完全不同的意思。
+
+  节奏（2026-11-12 夜加）
+  ----------------------
+  光是匀速变多的话，观众读到的是"进度条在走"。所以每到一个采样点
+  （1000 → 14 万 → 100 万 → 138.6 万），全屏一起亮一下、荡开两圈光环，
+  像人群一起吸一口气。收拢完成后光核再跳两下，然后才熄灭 ——
+  它得是活的，交棒那一下才像"睁眼"。
+
+  跳过
+  ----
+  双击，不是单击。这一层铺满全屏，而开场里最常被点的其实是右上角的
+  音乐开关；一击即跳的话，那一下就把三年跳没了（见 onDocClick）。
 
   实现约束
   --------
@@ -45,7 +57,7 @@
 
 var Opening = (function () {
 
-  var root, canvas, ctx, label,
+  var root, canvas, ctx, label, hint,
       W = 0, H = 0, dpr = 1,
       raf = null,
       running = false,
@@ -58,7 +70,13 @@ var Opening = (function () {
       finished = false,
       lastFrame = 0,
       progress = 0,
-      skipTimer = null;
+      skipTimer = null,
+      hintTimer = null,
+      lastTap = 0,         // 上一次"想跳过"的点击时刻
+      skipping = false,
+      skipAt = 0,
+      pulseAt = -1e9,      // 最近一次"到达采样点"的时刻
+      pulseIdx = -1;
 
   // ---------- 时间轴（毫秒）----------
   // 改这里就能改变整段开场的节奏。总长 = T_END。
@@ -284,10 +302,12 @@ var Opening = (function () {
       // 收拢时各自的落点半径与角度。
       // 全部精确叠到同一个像素上，980 颗经 lighter 相加就是一块死白的圆片，
       // 边缘一刀切 —— 看起来像贴上去的贴纸。
-      // 1.15 次方：落点摊得开一点，中心才不会被烧成一颗实心灯泡，
-      // 而是一团有浓有淡的星云。
+      //
+      // 0.75 次方 + 200 半径：让落点铺得比"往中间挤"更均匀一点。
+      // 用 1.15 次方时大部分点挤在半径 100 以内，即使有光晕也烧成一团
+      // 中心纯白的棉花；摊开之后中心亮、外圈疏，才像一团星云。
       oa: Math.random() * Math.PI * 2,
-      or: Math.pow(Math.random(), 1.15) * 168
+      or: Math.pow(Math.random(), 0.75) * 200
     });
   }
 
@@ -341,6 +361,12 @@ var Opening = (function () {
       return;
     }
 
+    // 跳过：画布内退场跑完 660ms 就收尾（见 requestSkip）
+    if (skipping && t - skipAt >= 660) {
+      finish();
+      return;
+    }
+
     // 生长进度：0 在 T_SEED，1 在 T_GROW
     var grow = Math.max(0, Math.min(1, (t - 300) / (T_GROW - 300)));
     progress = grow;
@@ -348,6 +374,84 @@ var Opening = (function () {
     drawFrame(t, grow, k);
 
     raf = requestAnimationFrame(frame);
+  }
+
+  // ---------- 节拍 ----------
+  //
+  // 这一节是整段开场"有没有感觉"的关键。
+  //
+  // 光点从一千长到满屏，如果只是数量在变，观众读到的是"进度条在走"——
+  // 数字确实在长，但没有一个时刻是"到了"。真实的一年不是匀速的：
+  // 破万、破十四万、破百万，每一次都是一个下午被人截图的那种瞬间。
+  //
+  // 所以每个采样点到达时，全屏要一起"吸一口气"：亮度齐涨、颗粒微胀，
+  // 再从画面中心荡开两圈光环。成本只有一次三角运算和两次描边，
+  // 但它把三十秒切成四段有重音的话。
+
+  // 检测"刚跨进一个新的采样点"。返回 0~1 的强度，随时间衰减。
+  function syncPulse(t, grow) {
+    if (t < T_SEED) return;
+
+    var idx = markAt(grow);
+    if (idx === pulseIdx) return;
+
+    pulseIdx = idx;
+    pulseAt = t;
+  }
+
+  function pulseNow(t) {
+    var d = (t - pulseAt) / 900;
+    if (d < 0 || d > 1) return 0;
+
+    // 二次方衰减：起手要猛，"到了"才有重量；拖得久就变成呼吸了。
+    return Math.pow(1 - d, 2);
+  }
+
+  // 收拢完成之后，光核再跳两下。
+  //
+  // 不加这个，结尾是"光慢慢挤成一团然后淡掉"——像被吸进了一个洞。
+  // 加上之后同样的动作变成"它攒起来了，而且它是活的"，
+  // 交棒给「祝」的那一下才像"睁眼"，不像"换页"。
+  function coreBeat(t) {
+    if (t < T_LIFT_END) return 1;
+
+    // 720ms 一次：两次搏动刚好落在"收拢完成"到"开始淡出"之间。
+    // 用 780 的话第二次峰值会被淡出吃掉一半，看起来只跳了一下。
+    var ph = (t - T_LIFT_END) / 720;
+    if (ph > 2.6) return 1;
+
+    var amp = Math.exp(-ph * 0.5) * 0.22;
+
+    return 1 + Math.sin(ph * Math.PI * 2) * amp;
+  }
+
+  // 两圈荡开的光环。用描边而不是实心圆 —— 实心圆在 lighter 下是一块糊掉的光斑，
+  // 描边才看得出"一圈"正从中心走过整屏。
+  function drawRipples(t, grow) {
+    var d = (t - pulseAt) / 1500;
+    if (d < 0 || d > 1) return;
+
+    var cx = W * 0.5,
+        cy = H * 0.44,
+        far = Math.min(W, H) * 0.78,
+        c = tintAt(grow),
+        i, k, r;
+
+    for (i = 0; i < 2; i++) {
+      k = d - i * 0.13;
+      if (k < 0 || k > 1) continue;
+
+      r = 26 + k * far;
+
+      // 衰减用 3 次方、上限 0.15：环荡到屏幕边缘时基本只剩一点痕迹。
+      // 用二次方时，十几秒后还挂着一圈完整的圆 —— 那是雷达，不是光。
+      ctx.globalAlpha = Math.pow(1 - k, 3) * 0.15;
+      ctx.strokeStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',1)';
+      ctx.lineWidth = 0.35 + 1.3 * (1 - k);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   function drawFrame(t, grow, k) {
@@ -365,10 +469,24 @@ var Opening = (function () {
     var lift = Math.max(0, Math.min(1, (t - T_LIFT) / (T_LIFT_END - T_LIFT)));
     var pull = Math.pow(lift, 1.5) * 0.030;
 
-    // 最后 1.1 秒才淡出。提前淡会让"收拢"这个动作看不完。
-    var fade = t > T_END - 1100
-      ? Math.max(0, (T_END - t) / 1100)
+    // 最后 0.9 秒才淡出。提前淡会让"收拢 + 心跳"这两件事都看不完：
+    // 光刚攒成一团就散掉，观众读到的只是"没了"，不是"结束了"。
+    var fade = t > T_END - 900
+      ? Math.max(0, (T_END - t) / 900)
       : 1;
+
+    // 跳过时的淡出。用 t 而不是另开一个计时器：
+    // 光点在继续飞、城市在继续亮，只是整体在退场 —— 读起来是"这一段淡了"，
+    // 不是"画面暂停然后消失"。
+    if (skipping) {
+      fade *= Math.max(0, 1 - (t - skipAt) / 640);
+    }
+
+    var beat, core;
+
+    syncPulse(t, grow);            // 先判"是否刚到一个采样点"，本帧就能看到
+    beat = pulseNow(t);
+    core = coreBeat(t);
 
     // ---------- 目标星数 ----------
     var target;
@@ -408,10 +526,10 @@ var Opening = (function () {
 
       // 头部
       var raised = (H * 1.04 - r.y) / (H * 1.04 - r.ty);
-      a = Math.min(1, raised * 3) * 0.85 * fade;
+      a = Math.min(1, raised * 3) * 0.85 * fade * (1 + beat * 0.35);
 
       var c = tintAt(grow),
-          d = r.r * 13;
+          d = r.r * 13 * (1 + beat * 0.18);
 
       ctx.globalAlpha = a * 0.62;
       ctx.drawImage(sprite(c[0], c[1], c[2]), r.x - d / 2, r.y - d / 2, d, d);
@@ -449,11 +567,32 @@ var Opening = (function () {
         // 第一颗是"心跳"，周期更长、幅度更大。
         // 尺寸也要大得多：这一颗是整段开场唯一的焦点，
         // 太小的话人根本不知道要看哪里，只会觉得屏幕坏了。
-        alpha = 0.55 + 0.45 * Math.sin(s.phase * 0.7);
-        dd = 120;
+        //
+        // 但它是"被点亮"的，不是一开始就亮着：前 0.9 秒从 12% 升到满。
+        // 少了这一下，第一帧就是一个现成的亮点，读起来像屏保；
+        // 有了这一下，画面才像"有人伸手把灯打开了"。
+        var ign = Math.min(1, t / 900);
+        ign = ign * ign * (3 - 2 * ign);
+
+        alpha = (0.55 + 0.45 * Math.sin(s.phase * 0.7)) * (0.12 + 0.88 * ign);
+        dd = 58 + 62 * ign;
       } else {
-        // 收拢时略微变大，像"越靠越近"
-        dd = s.r * (16 + lift * 11);
+        // 收拢时略微变大，像"越靠越近"。
+        // 只放大到 16→20，不是 16→27：几百颗挤在一起的时候，
+        // 尺寸翻倍等于给中心再浇一勺油，会烧成一块白斑。
+        dd = s.r * (16 + lift * 4);
+
+        // 采样点的重音、光核的心跳，都只改"亮度和大小"，
+        // 不改位置 —— 光点的走向是叙事（人从地上来），
+        // 让它突然抖一下就成了纯特效。
+        alpha *= (1 + beat * 0.55) * core;
+
+        // 越密越要收着亮。980 颗叠在半径 200 的盘里，
+        // 每颗的 base 都满着算，中心必然过曝成一片纯白 ——
+        // 那不是"光攒起来了"，那是"画面被烧穿了"。
+        alpha *= 1 - lift * 0.30;
+
+        dd *= (1 + beat * 0.14) * core;
       }
 
       ctx.globalAlpha = alpha;
@@ -465,13 +604,20 @@ var Opening = (function () {
       // 匀速收拢看起来像"镜头推远"，加速收拢才像"攒起来"。
       // 落点不是同一个像素，是各自在中心附近的一个小盘上（见 or / oa）。
       if (lift > 0) {
+        // 0.88 而不是 0.62：压到 0.62 时这团光是横向拉长的一朵云，
+        // 读起来像"一片雾"；接近正圆才像"攒起来的一团"。
+        // 留一点扁是为了让它落在屏幕上不那么像气泡。
         var tx = W * 0.5 + Math.cos(s.oa) * s.or,
-            ty = H * 0.44 + Math.sin(s.oa) * s.or * 0.62;
+            ty = H * 0.44 + Math.sin(s.oa) * s.or * 0.88;
 
         s.x += (tx - s.x) * pull * k;
         s.y += (ty - s.y) * pull * k;
       }
     }
+
+    // 光环画在光点之后：光点是"人"，光环是"消息传开"。
+    // 顺序反过来会让环从点缝里穿过去，看着像一张网格。
+    drawRipples(t, grow);
 
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -531,7 +677,7 @@ var Opening = (function () {
 
     if (idx < 0) {
       label.textContent = '';
-      label.classList.remove('opening-label--in', 'opening-label--hold');
+      label.classList.remove('opening-label--in', 'opening-label--hold', 'opening-label--final');
       return;
     }
 
@@ -539,12 +685,16 @@ var Opening = (function () {
         text = isFinal ? finalLine() : markText(grow);
 
     label.textContent = text;
-    label.classList.remove('opening-label--in', 'opening-label--hold');
+    label.classList.remove('opening-label--in', 'opening-label--hold', 'opening-label--final');
     void label.offsetWidth;          // 强制重排，让动画能重播
 
     // 最后一句话不淡出。它要一直撑到光收拢完成，
     // 否则整段演出在最后四秒是"没有话可说"的。
     label.classList.add(isFinal ? 'opening-label--hold' : 'opening-label--in');
+
+    // 落款那一句换字体、放大（见 index.html 的 --final）。
+    // 只在最后一帧加，数字那几行仍然是等宽的刻度。
+    if (isFinal) label.classList.add('opening-label--final');
   }
 
   // ---------- 生命周期 ----------
@@ -558,15 +708,20 @@ var Opening = (function () {
     raf = null;
 
     if (skipTimer) { clearTimeout(skipTimer); skipTimer = null; }
-    document.removeEventListener('click', onSkipClick);
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+    document.removeEventListener('click', onDocClick);
     window.removeEventListener('resize', onResize);
+    hideHint();
 
     // 交棒：先让这一层淡掉，同时叫醒粒子字 —— 两者重叠 0.8 秒。
     //
     // 原来的顺序是"等淡完（700ms）再 init"，中间留了一段纯黑，
     // 观众看到的是"光核没了 → 等一下 → 数字跳出来"。
     // 重叠之后，粒子字是从还没散尽的光里长出来的。
-    root.classList.add('opening--out');
+    //
+    // 跳过的路径不加这个类：那条路已经由画布自己把亮度退到 0 了，
+    // 再叠一次 CSS 淡出会变成"淡两次"，末尾有一小段是空的黑屏。
+    if (!skipping) root.classList.add('opening--out');
 
     var cb = doneFn;
     doneFn = null;
@@ -591,6 +746,7 @@ var Opening = (function () {
     root = document.getElementById('opening');
     canvas = document.getElementById('opening-canvas');
     label = document.getElementById('opening-label');
+    hint = document.getElementById('opening-hint');
 
     if (!root || !canvas) { if (done) done(); return; }
 
@@ -614,29 +770,97 @@ var Opening = (function () {
     stars.length = 0;
     risers.length = 0;
     markerIdx = -1;
+    skipping = false;
+    skipAt = 0;
+    lastTap = 0;
+    pulseIdx = -1;
+    pulseAt = -1e9;
 
     window.addEventListener('resize', onResize);
 
-    // 点一下画面就跳过。
+    // 跳过：双击，不是单击。
     //
-    // 三十秒不能跳过，第二次打开的人会烦 —— 而这一站是会被反复打开看的
-    // （信、往年、三连都在后面）。延迟绑定是因为启动这次播放的
-    // 那个 click 还在冒泡，立刻绑会被自己触发掉。
+    // 原来是一次点击就跳过。问题是这一层铺满全屏（z-index 3），
+    // 而开场三十秒里观众最常做的动作恰恰不是"跳过"，是"把音乐打开" ——
+    // 手指落在右上角，那一下同时也算"跳过"，于是三年攒下来的开场
+    // 在第二秒就没了，人还以为是自己点错了。
+    //
+    // 双击之后再没有这个问题：第一下什么都不破坏，只把"再点一下"这句话
+    // 显示出来；第二下才真的走。想跳的人两秒内就跳了，
+    // 不想跳的人点错一次也还在戏里。
+    //
+    // 延迟绑定是因为启动这次播放的那个 click 还在冒泡，
+    // 立刻绑会被自己触发掉，等于开场一出现就跳过。
     skipTimer = setTimeout(function () {
-      document.addEventListener('click', onSkipClick);
+      document.addEventListener('click', onDocClick);
     }, 400);
 
     raf = requestAnimationFrame(frame);
   }
 
-  function onSkipClick() {
-    document.removeEventListener('click', onSkipClick);
+  // 两次点击的间隔上限。太长的话"想点两次"会变成"点一下、过一会儿又点一下"，
+  // 第二下就成了新的"一拍即跳"，防误触就白做了。
+  var TAP_GAP = 480;
 
-    // 跳过就是跳过：不要留一屏冻结的光点在后面当背景，
-    // 那会让"跳过"看起来像"卡住了"。
-    if (root) root.style.display = 'none';
+  // 这些是真正可点的控件：调音量、开弹幕、看时光轴。
+  // 点在这些东西上，说明观众想操作界面，不是想跳过 —— 直接忽略这一下。
+  // 用 closest 而不是判断 tagName：按钮里套着 <i> 图标，事件源是图标不是按钮。
+  var NO_SKIP = 'button, a, input, select, textarea, .fab, .social, .triple';
 
-    finish();
+  function onDocClick(e) {
+    if (!running || skipping) return;
+
+    var el = e.target;
+    if (el && el.closest && el.closest(NO_SKIP)) return;
+
+    var now = performance.now();
+
+    if (now - lastTap < TAP_GAP) {
+      lastTap = 0;
+      requestSkip();
+      return;
+    }
+
+    lastTap = now;
+    showHint();
+  }
+
+  function showHint() {
+    if (!hint) return;
+
+    hint.classList.add('hint--in');
+
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () {
+      hint.classList.remove('hint--in');
+      lastTap = 0;               // 提示没了，上一次点击也不再算数
+      hintTimer = null;
+    }, 2600);
+  }
+
+  function hideHint() {
+    if (!hint) return;
+
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+    hint.classList.remove('hint--in');
+  }
+
+  // 跳过不是"啪"地切走。
+  //
+  // 原来直接 display:none，观众看到的是画面一黑、粒子字已经在半路 ——
+  // 像播放器被按坏了。这里让画布自己继续跑，用 0.64 秒把整体亮度退干净，
+  // 光点还在飞、城市还在亮，只是"这一段结束了"。
+  function requestSkip() {
+    if (!running || skipping) return;
+
+    skipping = true;
+    skipAt = t0 ? performance.now() - t0 : 0;
+
+    hideHint();
+
+    // 兜底：切到后台时 rAF 会被节流，只靠帧循环判断可能迟迟不结束。
+    if (skipTimer) clearTimeout(skipTimer);
+    skipTimer = setTimeout(finish, 1000);
   }
 
   function onResize() {
