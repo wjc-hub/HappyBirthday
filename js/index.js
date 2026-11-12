@@ -111,11 +111,15 @@ S.Drawing = (function () {
 
     // 亮度必须和粒子密度一起看：这里用的 lighter 是加法混合，
     // 同一处叠 5 颗就接近打满。间距从 13 收到 9 之后重叠翻倍，
-    // 原来的峰值 1.0 会直接烧成白芯 —— 所以峰值一起压到 0.62。
-    grad.addColorStop(0.00, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.62)');
-    grad.addColorStop(0.22, 'rgba(' + rgb + ',0.5)');
-    grad.addColorStop(0.50, 'rgba(' + rgb + ',0.15)');
-    grad.addColorStop(0.76, 'rgba(' + rgb + ',0.04)');
+    // 原来的峰值 1.0 会直接烧成白芯 —— 所以峰值压过一档到 0.62。
+    //
+    // 0.62 时字在暗底上发闷（四边被背景的暖雾吃掉），
+    // 但抬到 0.78 会直接糊掉：笔画的横竖之间被加法混合填满，
+    // 一个字涨成一条发光的横条。0.70 是这两个失败之间的位置。
+    grad.addColorStop(0.00, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.70)');
+    grad.addColorStop(0.22, 'rgba(' + rgb + ',0.54)');
+    grad.addColorStop(0.50, 'rgba(' + rgb + ',0.19)');
+    grad.addColorStop(0.76, 'rgba(' + rgb + ',0.06)');
     grad.addColorStop(1.00, 'rgba(' + rgb + ',0)');
 
     ctx.fillStyle = grad;

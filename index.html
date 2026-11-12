@@ -53,27 +53,30 @@
                ------------------------------------------------------------ */
 
             /* 顶光：生日那天是打上来的舞台光，平时只是窗外的天光 */
-            --mood-top-a: rgba(255, 190, 132, .17);
-            --mood-top-b: rgba(255, 150, 80, .05);
+            --mood-top-a: rgba(255, 198, 148, .30);
+            --mood-top-b: rgba(255, 156, 96, .11);
 
             /* 左右侧光。安静期偏夜蓝（窗外），生辰期转成暖橙（屋里） */
-            --mood-side-l: rgba(118, 132, 162, .085);
-            --mood-side-r: rgba(98, 82, 132, .075);
+            --mood-side-l: rgba(126, 146, 186, .13);
+            --mood-side-r: rgba(108, 92, 148, .11);
 
             /* 城市光污染暖雾 */
-            --mood-haze: rgba(255, 160, 120, .055);
+            --mood-haze: rgba(255, 162, 118, .10);
 
             /* 底部辣椒红：这是"生日余温"，平时不该常亮 */
-            --mood-bottom: rgba(226, 58, 46, .12);
+            --mood-bottom: rgba(226, 58, 46, .16);
 
-            /* 内容光池 */
-            --mood-pool-a: rgba(226, 58, 46, .075);
-            --mood-pool-b: rgba(160, 44, 36, .022);
+            /* 内容光池：这是决定"画面亮不亮"的那一层。
+               之前只有 .075，等于没开灯，上屏永远像隔着一层灰。 */
+            --mood-pool-a: rgba(232, 118, 76, .16);
+            --mood-pool-b: rgba(168, 58, 44, .055);
 
-            /* 基底三段。安静期中性偏冷，生辰期回暖 */
-            --mood-base-a: #201A18;
-            --mood-base-b: #171211;
-            --mood-base-c: #0E0B0A;
+            /* 基底三段。
+               ⚠️ 提亮靠"抬中间调"，不是加白：
+               纯加白会把暖红洗成脏粉，抬中段才有"屋里有盏灯"的层次。 */
+            --mood-base-a: #3A2C26;
+            --mood-base-b: #281D19;
+            --mood-base-c: #171010;
 
             /* 城市层的明灭强度 */
             --mood-city: .46;
@@ -86,22 +89,22 @@
         /* ---------- 生辰期：所有灯都打开 ---------- */
 
         body.mode--festive {
-            --mood-top-a: rgba(255, 200, 138, .48);
-            --mood-top-b: rgba(255, 152, 82, .18);
+            --mood-top-a: rgba(255, 212, 156, .58);
+            --mood-top-b: rgba(255, 158, 88, .24);
 
-            --mood-side-l: rgba(228, 76, 56, .20);
-            --mood-side-r: rgba(255, 168, 88, .14);
+            --mood-side-l: rgba(232, 88, 62, .26);
+            --mood-side-r: rgba(255, 176, 96, .20);
 
-            --mood-haze: rgba(255, 168, 108, .17);
+            --mood-haze: rgba(255, 172, 116, .24);
 
-            --mood-bottom: rgba(255, 88, 58, .48);
+            --mood-bottom: rgba(255, 94, 62, .56);
 
-            --mood-pool-a: rgba(255, 96, 62, .26);
-            --mood-pool-b: rgba(186, 52, 40, .10);
+            --mood-pool-a: rgba(255, 118, 78, .34);
+            --mood-pool-b: rgba(192, 62, 44, .14);
 
-            --mood-base-a: #2E1E19;
-            --mood-base-b: #201614;
-            --mood-base-c: #130D0B;
+            --mood-base-a: #4A3025;
+            --mood-base-b: #34231C;
+            --mood-base-c: #1E1411;
 
             --mood-city: .92;
 
@@ -131,9 +134,11 @@
                     rgba(255, 244, 230, .014) 0 1px,
                     transparent 1px 4px),
                 /* 顶光：从画面上方洒下来，居中。没有形状的光只有对称才立得住，
-                   偏在一角就成一块污渍。强度由氛围令牌决定。 */
-                radial-gradient(ellipse 68% 44% at 50% -14%,
-                    var(--mood-top-a), var(--mood-top-b) 48%, transparent 74%),
+                   偏在一角就成一块污渍。强度由氛围令牌决定。
+                   开口收窄到 54%×38%：铺太开（68%×44%）时，上半屏整个变成
+                   一片橙雾，光点全糊在雾里 —— 有亮度、没有层次。 */
+                radial-gradient(ellipse 54% 38% at 50% -16%,
+                    var(--mood-top-a), var(--mood-top-b) 46%, transparent 72%),
                 /* 左右各一点侧光，把画面横向撑开 */
                 radial-gradient(ellipse 28% 52% at 5% 42%,
                     var(--mood-side-l), transparent 72%),
@@ -151,9 +156,10 @@
                 radial-gradient(ellipse 78% 34% at 50% 104%,
                     var(--mood-bottom), transparent 74%),
                 /* 内容区的光池：让中间那块"被照亮"，
-                   否则大屏上文字是浮在虚空里 */
-                radial-gradient(ellipse 46% 34% at 50% 46%,
-                    var(--mood-pool-a), var(--mood-pool-b) 52%, transparent 76%),
+                   否则大屏上文字是浮在虚空里。
+                   同样收窄：这一层是"聚光"，不是"底色"。开太大就成了浑。 */
+                radial-gradient(ellipse 38% 28% at 50% 44%,
+                    var(--mood-pool-a), var(--mood-pool-b) 50%, transparent 74%),
                 /* 基底：中间压住，让红色数字和粒子自己发光 */
                 radial-gradient(ellipse at 50% 40%,
                     var(--mood-base-a) 0%, var(--mood-base-b) 54%, var(--mood-base-c) 100%);
@@ -204,6 +210,88 @@
         @keyframes cityBreathe {
             0%, 100% { opacity: calc(var(--mood-city) * .74); }
             50%      { opacity: calc(var(--mood-city) * 1.14); }
+        }
+
+        /* ---------- 开场：三年的光 ---------- */
+
+        /* 放在城市之上、粒子之下。
+           开场时粒子层是空的，所以观众看到的是「光从城市里升起来」；
+           等粒子字开始，这一层已经退干净了。 */
+        #opening {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            display: none;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity .7s ease;
+        }
+
+        #opening.opening--out { opacity: 0; }
+
+        #opening canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 计数文案：像电影字幕，不像数据看板。
+           等宽字 + 大字距，是为了让 2026-11 · 138.6 万人这行数字
+           读起来有"刻度"的意思，而不是一个统计结果。 */
+        #opening-label {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 30vh;
+            text-align: center;
+            font-family: var(--mono);
+            font-size: 11px;
+            line-height: 1;
+            letter-spacing: .3em;
+            /* letter-spacing 会在末尾多留一个字距，用 text-indent 抵掉，
+               否则整行看起来往左偏 */
+            text-indent: .3em;
+            color: rgba(255, 236, 204, .85);
+            /* 三层：两层暖光让字"发亮"，一层暗影把背后的光点压下去。
+               没有那层暗影，字落在密集的光点里会被吃掉 —— 满屏星的时候
+               这行数字是最该被读清的东西，它是这段演出的刻度。 */
+            text-shadow:
+                0 0 22px rgba(255, 170, 96, .62),
+                0 0 44px rgba(255, 140, 70, .34),
+                0 1px 10px rgba(12, 6, 4, .92);
+            opacity: 0;
+        }
+
+        #opening-label.opening-label--in {
+            animation: openingLabel 3.6s ease forwards;
+        }
+
+        /* 最后一句：不淡出，一直留到光收拢完成。
+           收尾时刻画面上应该有一句话压着，而不是只剩一堆渐暗的点。 */
+        #opening-label.opening-label--hold {
+            animation: openingLabelHold 2s ease forwards;
+        }
+
+        /* 出现要慢、收尾要更慢。数字是"被念出来"的，不是"跳出来"的。 */
+        @keyframes openingLabel {
+            0%   { opacity: 0; transform: translateY(7px); }
+            16%  { opacity: 1; transform: translateY(0); }
+            70%  { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* 注意：这里不要动画 letter-spacing —— 字距一变，整行会左右游走，
+           像在抖。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
+        @keyframes openingLabelHold {
+            0%   { opacity: 0; transform: translateY(7px); }
+            40%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: .92; transform: translateY(0); }
+        }
+
+        @media (max-height: 620px) {
+            #opening-label { bottom: 26vh; font-size: 10px; }
         }
 
         /* ---------- 画布 ---------- */
@@ -1723,6 +1811,14 @@
 
 <canvas id="stars"></canvas>
 <div id="city" aria-hidden="true"></div>
+
+<!-- 开场：三年的光。独立一层，不占用粒子引擎的画布。
+     光点从画面下沿（城市的位置）升起，随真实粉丝数增长。详见 js/opening.js -->
+<div id="opening" aria-hidden="true">
+    <canvas id="opening-canvas"></canvas>
+    <div id="opening-label"></div>
+</div>
+
 <canvas id="canvas"></canvas>
 <canvas class="canvas"></canvas>
 <div id="vignette"></div>
@@ -1840,9 +1936,19 @@
 
         document.body.classList.add('started');
 
-        init(0);            // 切换粒子文字到正式祝福序列
         playMusic();
-        runShow();          // 安排弹幕、长信、三连的出场时机
+
+        // 开场先演一遍「三年的光」，演完才把画面交给粒子字。
+        //
+        // 顺序不能反：粒子字一出来就占满整屏，光就没有地方可以升起来了。
+        // 这一年是 2026，就有 30 秒的开场；以后每多一条采样点，这段自动变长。
+        Opening.play(function () {
+            init(0);            // 切换粒子文字到正式祝福序列
+            runShow();          // 安排弹幕、长信、三连的出场时机
+
+            // 烟花在开场结束后才点火。开场那三十秒是留给光的。
+            if (window.__festiveFireworks) startFireworks();
+        });
     }
 
     // 整段演出的编排：祝福语 → 头像 → 弹幕 → 长信 → 三连
@@ -2431,6 +2537,7 @@
 <script src="js/timeline.js"></script>
 <script src="js/people.js"></script>
 <script src="js/danmaku.js"></script>
+<script src="js/opening.js"></script>
 <script src="js/letter.js"></script>
 <script>
     // ---------- 相册与时光轴入口 ----------
@@ -2559,7 +2666,14 @@
     // 安静期的画布本身是 opacity: 0 的，可原来的 rAF 照样每帧清屏、算粒子，
     // 一年三百多天都在空转。手机上等于白白发热。
     // 放在氛围分流之后判断，此时 body 上的类一定已经挂好了。
-    if (document.body.classList.contains('mode--festive')) startFireworks();
+    //
+    // 注意这里**不启动**，只把开关交给开场：
+    // 开场是"安静地看着灯一盏盏亮"，天上同时炸礼花的话，两种情绪会互相抵消。
+    // 真正的 startFireworks() 在 Opening 演完之后调用（见 start()）。
+    // 也正因为如此，如果开场被跳过（减少动效），那条路径必须自己补上。
+    if (document.body.classList.contains('mode--festive')) {
+        window.__festiveFireworks = true;
+    }
 
     // 粒子文字引擎需要 DOM 就绪后再初始化待机画面。
     //
