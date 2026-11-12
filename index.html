@@ -1942,13 +1942,22 @@
         //
         // 顺序不能反：粒子字一出来就占满整屏，光就没有地方可以升起来了。
         // 这一年是 2026，就有 30 秒的开场；以后每多一条采样点，这段自动变长。
-        Opening.play(function () {
+        //
+        // 少一层保险都不行：js/opening.js 万一没加载上（缓存、CDN、断网），
+        // Opening 就是 undefined，这里会抛错，整场演出卡在引导层后面什么都不发生。
+        function beginShow() {
             init(0);            // 切换粒子文字到正式祝福序列
             runShow();          // 安排弹幕、长信、三连的出场时机
 
             // 烟花在开场结束后才点火。开场那三十秒是留给光的。
             if (window.__festiveFireworks) startFireworks();
-        });
+        }
+
+        if (window.Opening && typeof Opening.play === 'function') {
+            Opening.play(beginShow);
+        } else {
+            beginShow();
+        }
     }
 
     // 整段演出的编排：祝福语 → 头像 → 弹幕 → 长信 → 三连
