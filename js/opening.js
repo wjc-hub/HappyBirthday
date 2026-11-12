@@ -40,6 +40,10 @@
   像人群一起吸一口气。收拢完成后光核再跳两下，然后才熄灭 ——
   它得是活的，交棒那一下才像"睁眼"。
 
+  那一行文案也不是整行淡入的：一个字一个 <span>，各自从下方落位
+  （见 paintChars）。整行淡入读起来是"字幕被切上来"，逐字落位才像
+  "有人在黑暗里把这句念出来"。
+
   跳过
   ----
   双击，不是单击。这一层铺满全屏，而开场里最常被点的其实是右上角的
@@ -651,6 +655,32 @@ var Opening = (function () {
 
   // ---------- 文案 ----------
 
+  // 把一句话拆成一个个字，让它们各自出现。
+  //
+  // 整行一起淡入，读起来是"一张字幕被切上来"；一个字一个字地落位，
+  // 才像有人在黑暗里把这句话念出来 —— 而这三十秒本来就只有这一行字，
+  // 它必须自己承担整段开场的语气。
+  //
+  // 坑：空格不能用普通空格。span 里的空格在 inline-block 下会被折叠，
+  // 一行「2026-11 · 138.6 万人」会挤成「2026-11·138.6万人」。
+  // 换行同理 —— 用 nbsp 保住。
+  function paintChars(text, stagger) {
+    var i, ch, sp;
+
+    label.textContent = '';
+
+    for (i = 0; i < text.length; i++) {
+      ch = text.charAt(i);
+
+      sp = document.createElement('span');
+      sp.className = 'ol-ch';
+      sp.style.setProperty('--i', i);
+      sp.style.setProperty('--gap', stagger + 'ms');
+      sp.textContent = (ch === ' ' || ch === '\u3000') ? '\u00a0' : ch;
+      label.appendChild(sp);
+    }
+  }
+
   function updateLabel(t, grow) {
     if (!label) return;
 
@@ -684,7 +714,9 @@ var Opening = (function () {
     var isFinal = idx >= series().length,
         text = isFinal ? finalLine() : markText(grow);
 
-    label.textContent = text;
+    // 落款那十一个字比数字行重，所以字与字之间留得久一点：
+    // 62ms 是"念数字"的节奏，118ms 是"说一句话"的节奏。
+    paintChars(text, isFinal ? 118 : 62);
     label.classList.remove('opening-label--in', 'opening-label--hold', 'opening-label--final');
     void label.offsetWidth;          // 强制重排，让动画能重播
 

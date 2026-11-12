@@ -261,17 +261,39 @@
                 0 0 22px rgba(255, 170, 96, .62),
                 0 0 44px rgba(255, 140, 70, .34),
                 0 1px 10px rgba(12, 6, 4, .92);
+            /* 出现这件事不再由父层管，交给每个字（见 .ol-ch）。
+               父层只负责"什么时候整行退场"。 */
+            opacity: 1;
+        }
+
+        /* 一个字一个格。宽度先占住，所以字是一个一个亮起来，
+           而不是一个一个把后面的字往右挤 —— 后者读起来像打字机的排版事故。 */
+        #opening-label .ol-ch {
+            display: inline-block;
             opacity: 0;
+            transform: translateY(10px);
+            filter: blur(6px);
+        }
+
+        #opening-label.opening-label--in .ol-ch,
+        #opening-label.opening-label--hold .ol-ch {
+            animation: openingCharIn .95s cubic-bezier(.22, .68, .2, 1) both;
+            animation-delay: calc(var(--i) * var(--gap, 62ms));
+        }
+
+        /* 落款的字落得慢一点、稳一点。数字是念出来的，这句话是说出来的。 */
+        #opening-label.opening-label--final .ol-ch {
+            animation-duration: 1.15s;
         }
 
         #opening-label.opening-label--in {
-            animation: openingLabel 3.6s ease forwards;
+            animation: openingLabelFade 3.9s ease forwards;
         }
 
         /* 最后一句：不淡出，一直留到光收拢完成。
            收尾时刻画面上应该有一句话压着，而不是只剩一堆渐暗的点。 */
         #opening-label.opening-label--hold {
-            animation: openingLabelHold 2s ease forwards;
+            opacity: 1;
         }
 
         /* 最后一句是「落款」，不是「刻度」。
@@ -327,21 +349,23 @@
 
         #opening-hint.hint--in { opacity: 1; }
 
-        /* 出现要慢、收尾要更慢。数字是"被念出来"的，不是"跳出来"的。 */
-        @keyframes openingLabel {
-            0%   { opacity: 0; transform: translateY(7px); }
-            16%  { opacity: 1; transform: translateY(0); }
-            70%  { opacity: 1; }
-            100% { opacity: 0; }
+        /* 一个字：从下方 10px、散焦 6px 的地方落到自己的位置上。
+           不缩放 —— 缩放会让每个字在自己的格子里膨胀再缩回，
+           一排字同时膨胀，看起来像在呼吸，不像在落位。 */
+        @keyframes openingCharIn {
+            0%   { opacity: 0; transform: translateY(10px); filter: blur(6px); }
+            55%  { opacity: 1; }
+            100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
         }
 
-        /* 注意：这里不要动画 letter-spacing —— 字距一变，整行会左右游走，
-           像在抖。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
-        @keyframes openingLabelHold {
-            0%   { opacity: 0; transform: translateY(7px); }
-            40%  { opacity: 1; transform: translateY(0); }
-            100% { opacity: .92; transform: translateY(0); }
+        /* 父层只做退场。前面的时间留给字自己出现，
+           整行一起淡的话，刚看到第三个字它就暗下去了。 */
+        @keyframes openingLabelFade {
+            0%, 58% { opacity: 1; }
+            100%    { opacity: 0; }
         }
+
+        /* 注意：字距始终不动。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
 
         @media (max-height: 620px) {
             #opening-label { bottom: 26vh; font-size: 10px; }
@@ -366,7 +390,10 @@
         /* 烟花的贴图是彩虹配色，和这一版的红/暖金打架。
            用一层颜色矩阵整体压向暖色，不重绘贴图。
            颜色矩阵比模糊便宜得多，但仍然是每帧运算，低端机另算。 */
-        #canvas { z-index: 8888; }
+        /* 整层压到六成半。烟花是背景，粒子字才是主角 ——
+           两样都满亮的时候，一朵礼花落在字上，字就不见了。
+           这一层是画布整体透明，比逐帧调每个火花的 alpha 便宜得多。 */
+        #canvas { z-index: 8888; opacity: .66; }
         .canvas { z-index: 9000; }
 
         /* 四周暗角，把视线聚到画面中央 */
@@ -2004,6 +2031,10 @@
         // 顺序不能反：粒子字一出来就占满整屏，光就没有地方可以升起来了。
         // 这一年是 2026，就有 30 秒的开场；以后每多一条采样点，这段自动变长。
         //
+        // 但开场只属于生日当天。三十秒的仪式是为"一年就这一次"准备的：
+        // 平时进来的人是路过，是查日子，给他一段必须等的演出，等于把门关上了。
+        // 安静期直接交棒 —— 光核那一下收拢、那两句落款，本来就是贺词的一部分。
+        //
         // 少一层保险都不行：js/opening.js 万一没加载上（缓存、CDN、断网），
         // Opening 就是 undefined，这里会抛错，整场演出卡在引导层后面什么都不发生。
         function beginShow() {
@@ -2014,7 +2045,9 @@
             if (window.__festiveFireworks) startFireworks();
         }
 
-        if (window.Opening && typeof Opening.play === 'function') {
+        var festive = document.body.classList.contains('mode--festive');
+
+        if (festive && window.Opening && typeof Opening.play === 'function') {
             Opening.play(beginShow);
         } else {
             beginShow();
@@ -2373,10 +2406,23 @@
         seeds.push(seed);
     }
 
-    function splode(x,y,z){
+    // opts 可选：{ size, spread, count }，都是倍率，默认 1。
+    //
+    // 加这个是为了"放在脸两边的那几发"。整个引擎里炸开的大小由三件事决定：
+    // 火花数量（sparkCap）、初速（sparkV）、贴图半径（radius）。
+    // 不改引擎的话，想让一朵礼花变小只能把它挪远 —— 但挪远之后
+    // 火花变成一串细线，看起来像流星雨，不像礼花。
+    // 所以给这三个量留一个倍率：位置不动，尺寸和扩散同比例收。
+    function splode(x,y,z,opts){
 
-        t=5+parseInt(Math.random()*sparkCap);
-        sparkV=1+Math.random()*2.5;
+        opts = opts || {};
+
+        var kSize  = opts.size  == null ? 1 : opts.size,
+            kSpread= opts.spread== null ? 1 : opts.spread,
+            kCount = opts.count == null ? 1 : opts.count;
+
+        t=5+parseInt(Math.random()*sparkCap*kCount);
+        sparkV=(1+Math.random()*2.5)*kSpread;
         type=parseInt(Math.random()*3);
 
         // 一朵花一个主色。原来是每个火花各自随机取色，炸开就是一把彩色沙子；
@@ -2418,7 +2464,13 @@
                     }
                     break;
             }
-            spark.radius=25+Math.random()*50;
+            spark.radius=(25+Math.random()*50)*kSize;
+
+            // 记住出生半径。烟花什么时候消失，原来判的是绝对半径 < 5，
+            // 这个阈值把"变小"和"变短命"绑死在了一起：
+            // 想让头像旁边那几发小一点，火花会先被这条阈值判死，
+            // 结果是一朵都看不见。改成按比例收（见 doLogic）。
+            spark.r0=spark.radius;
             spark.alpha=1;
             // 拖尾颜色统一到暖色，且同朵花里八成以上同一个主色 ——
             // 原来十个 case 分别配 #f84 / #84f / #8ff，彩虹拖尾配着烘暖的贴图，
@@ -2448,7 +2500,16 @@
 
     function doLogic(){
 
-        if(seedTimer<frames){
+        // 头顶有没有"禁放区"。
+        //
+        // 头像成形那两秒要把天按住：随机的巡回礼花一旦落下来，
+        // 就会正好开在那张刚聚好的脸上 —— 而这两秒是整段演出唯一
+        // 需要被看清的一帧。按住之后，天上只剩刻意放的那两三发。
+        // 用 frames 记时刻，不用 Date：暂停的判据和 rAF 是同一把尺子，
+        // 切到后台再回来也不会算错。
+        var holdTill = window.__seedHoldUntil || 0;
+
+        if(seedTimer<frames && frames>holdTill){
             // 一朵一朵来。原来平均 0.4 秒一颗，天上永远同时挂着三四朵正在开的，
             // 看着像屏保；现在 4~7 秒一朵 —— 大部分时间是安静的夜空和城市，
             // 偶尔一朵开完、落净。稀疏才是礼花，密集只是噪点。
@@ -2470,7 +2531,10 @@
             }
         }
         for(i=0;i<sparks.length;++i){
-            if(sparks[i].alpha>0 && sparks[i].radius>5){
+            // 生死判据用"缩到出生大小的 16%"，不用绝对半径。
+            // 绝对阈值会让小礼花瞬间死亡（半径本来就小），
+            // 于是"只放几发小的"变成一个做不到的要求。
+            if(sparks[i].alpha>0 && sparks[i].radius>(sparks[i].r0||5)*0.16){
                 sparks[i].alpha-=.01;
                 sparks[i].radius/=1.02;
                 sparks[i].vy+=gravity;
@@ -2503,9 +2567,16 @@
         // 相机不再绕圈。绕圈时整片画面在缓缓横移，看久了像晕船，
         // 更糟的是粒子文字背后的东西一直在漂，注意力被拽走。
         // 改成原地极缓的呼吸：位置几乎不动，只留一点"活的"错觉。
+        //
+        // ⚠️ yaw 的基准值必须是 0，不能是 π。
+        // 这套投影里 z 轴朝向观众，rasterizePoint 的可见性判据是 1/z ∈ (0,1)，
+        // 也就是要求变换后的 z > 1。yaw = π 会把每个点绕到相机背后（z 变负），
+        // 于是所有烟花都被判成"看不见"—— 不报错、不闪烁，就是整片天是空的。
+        // 原来写成 π + sin(...) 是为了"看向反方向"，但这里根本没有反方向可看，
+        // 只有一屏观众。呼吸的幅度保持不变，基准挪回 0。
         playerX = Math.sin(frames / 420) * 1.1;
         playerY = Math.sin(frames / 560) * 0.5;
-        yaw     = pi + Math.sin(frames / 900) * 0.018;
+        yaw     = Math.sin(frames / 900) * 0.018;
         pitch   = Math.sin(frames / 700) * 0.01;
     }
 
@@ -2585,6 +2656,13 @@
     // 由 js/index.js 的 #portrait 指令回调触发：白光闪一下 + 烟花齐放。
 
     window.onPortraitReveal = function () {
+        // 天上正在升的种子礼花全部撤掉。
+        // 它们会在半秒到一秒后开炸，位置是随机的 —— 十有八九开在脸上。
+        seeds.length = 0;
+
+        // 接下来两秒多不再放随机礼花（见 doLogic 的 __seedHoldUntil）。
+        window.__seedHoldUntil = frames + 170;
+
         // 白光：重放动画需要先移除 class 并强制重排
         var flash = document.getElementById('flash');
         flash.classList.remove('flash--on');
@@ -2597,19 +2675,52 @@
         setTimeout(function () { Danmaku.fadeIn(); },
                    (SITE.show && SITE.show.portraitHold || 5000) + 500);
 
-        // 烟花齐放：在观众上方一圈同时炸开，把视线托起来
-        var burst = isMobile ? 4 : 7;
+        // 烟花：两发（手机）/ 三发（桌面），只落在脸的两侧。
+        //
+        // 原来是一圈七发绕着中心炸，出发点是"把视线托起来"，
+        // 实际效果却是礼花正好开在那张刚成形的脸上 —— 整场演出
+        // 最该看清的一帧，被自己放的烟花糊掉了。
+        //
+        // 现在改成侧幕：位置从"环"改成"两侧"，一左一右往上托，
+        // 中间留空给脸。第三发比另外两发高、也更靠外，
+        // 左右不完全对称 —— 对称的两发读起来像一对耳环，是装饰；
+        // 三发一高一低才像有人在远处放的。
+        //
+        // 坐标是屏幕像素，最后换算回烟花那套 3D 投影（y 轴向上为负）。
+        var shortSide = Math.min(canvas.width, canvas.height),
+            faceHalf = shortSide * 0.62 / 2,          // 头像半宽（见 portrait 的 62%）
+            sideX = Math.min(cx - 20, faceHalf + Math.max(52, cx * 0.24)),
+            upY = Math.min(cy - 20, faceHalf * 0.58);
 
-        for (var k = 0; k < burst; k++) {
-            (function (i) {
+        // 每一发按原尺寸的六成放。
+        // 引擎炸开的直径大约 240px（实测），原生尺度是给"整片天"用的；
+        // 缩到六成之后，三发落在两侧正好是"远处有人在放"的样子，
+        // 而主角那张脸仍然是画面上最大、最亮的东西。
+        // 缩小靠倍率，不靠挪远：挪远之后火花会变成一串细线，像流星雨。
+        var BURST = { size: 0.62, spread: 0.9, count: 0.6 };
+
+        var shots = isMobile
+            ? [[-sideX, upY + 10], [sideX, upY - 8]]
+            : [[-sideX, upY], [sideX, upY + 20], [-sideX * 0.88, Math.min(cy - 70, upY + 96)]];
+
+        function burstAt(dx, up) {
+            // 反向解投影：屏幕偏移 = 世界坐标 / (z - playerZ) * scale
+            //
+            // 分母是 z - playerZ，不是 z。相机站在 playerZ = -25，
+            // 所以 42 这一层的实际距离是 67。按 42 算出来的位置会往中间缩三成 ——
+            // 上一版就是这样：明明写的是"两侧"，炸出来却贴着两颊。
+            var z = 42,
+                d = z - playerZ;
+
+            splode(dx / scale * d, -up / scale * d, z, BURST);
+        }
+
+        for (var k = 0; k < shots.length; k++) {
+            (function (s, i) {
                 setTimeout(function () {
-                    var ang = (Math.PI * 2 / burst) * i + Math.random() * 0.5,
-                        rad = 22 + Math.random() * 26;
-
-                    // y 轴向上为负，-15 左右是画面偏上的位置
-                    splode(Math.cos(ang) * rad, -12 - Math.random() * 14, Math.sin(ang) * rad);
-                }, i * 130 + Math.random() * 90);
-            }(k));
+                    burstAt(s[0], s[1]);
+                }, i * 260);
+            }(shots[k], k));
         }
     };
 
