@@ -38,6 +38,81 @@
             --sans: "PingFang SC", "HarmonyOS Sans SC", "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", "Hiragino Sans GB", Avenir, "Helvetica Neue", Arial, sans-serif;
             --serif: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
             --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+            /* ------------------------------------------------------------
+               氛围令牌 · 两套光线剧本
+               ------------------------------------------------------------
+               这一站一年只热闹三天，其余三百多天都在等。
+               如果两段日子共用一套光，那么"生日"就没有待遇，"平常"也在喊。
+
+               所以光本身做成可切换的令牌：同一个房间，
+               平时只开一盏窗边的灯，生日那几天把所有灯都点上。
+
+               默认（:root）= 安静期；body.mode--festive 覆盖 = 生辰期。
+               只改颜色和强度，不改结构 —— 楼还是那些楼，窗还是那扇窗。
+               ------------------------------------------------------------ */
+
+            /* 顶光：生日那天是打上来的舞台光，平时只是窗外的天光 */
+            --mood-top-a: rgba(255, 190, 132, .17);
+            --mood-top-b: rgba(255, 150, 80, .05);
+
+            /* 左右侧光。安静期偏夜蓝（窗外），生辰期转成暖橙（屋里） */
+            --mood-side-l: rgba(118, 132, 162, .085);
+            --mood-side-r: rgba(98, 82, 132, .075);
+
+            /* 城市光污染暖雾 */
+            --mood-haze: rgba(255, 160, 120, .055);
+
+            /* 底部辣椒红：这是"生日余温"，平时不该常亮 */
+            --mood-bottom: rgba(226, 58, 46, .12);
+
+            /* 内容光池 */
+            --mood-pool-a: rgba(226, 58, 46, .075);
+            --mood-pool-b: rgba(160, 44, 36, .022);
+
+            /* 基底三段。安静期中性偏冷，生辰期回暖 */
+            --mood-base-a: #201A18;
+            --mood-base-b: #171211;
+            --mood-base-c: #0E0B0A;
+
+            /* 城市层的明灭强度 */
+            --mood-city: .46;
+
+            /* 强调色：安静期是暖白（像显示器映在脸上的光），生辰期是辣椒红 */
+            --mood-accent: rgba(255, 240, 224, .88);
+            --mood-accent-glow: rgba(255, 176, 140, .22);
+        }
+
+        /* ---------- 生辰期：所有灯都打开 ---------- */
+
+        body.mode--festive {
+            --mood-top-a: rgba(255, 200, 138, .48);
+            --mood-top-b: rgba(255, 152, 82, .18);
+
+            --mood-side-l: rgba(228, 76, 56, .20);
+            --mood-side-r: rgba(255, 168, 88, .14);
+
+            --mood-haze: rgba(255, 168, 108, .17);
+
+            --mood-bottom: rgba(255, 88, 58, .48);
+
+            --mood-pool-a: rgba(255, 96, 62, .26);
+            --mood-pool-b: rgba(186, 52, 40, .10);
+
+            --mood-base-a: #2E1E19;
+            --mood-base-b: #201614;
+            --mood-base-c: #130D0B;
+
+            --mood-city: .92;
+
+            --mood-accent: var(--red-400);
+            --mood-accent-glow: rgba(226, 58, 46, .55);
+        }
+
+        /* 换氛围时不要硬切。光的变化在真实世界里是渐变的，
+           尤其从安静切到热闹那一下，硬跳会像换了个网站。 */
+        body {
+            transition: background-color 1.2s ease;
         }
 
         html, body {
@@ -56,14 +131,14 @@
                     rgba(255, 244, 230, .014) 0 1px,
                     transparent 1px 4px),
                 /* 顶光：从画面上方洒下来，居中。没有形状的光只有对称才立得住，
-                   偏在一角就成一块污渍。 */
+                   偏在一角就成一块污渍。强度由氛围令牌决定。 */
                 radial-gradient(ellipse 68% 44% at 50% -14%,
-                    rgba(255, 186, 120, .36), rgba(255, 150, 80, .11) 48%, transparent 74%),
+                    var(--mood-top-a), var(--mood-top-b) 48%, transparent 74%),
                 /* 左右各一点侧光，把画面横向撑开 */
                 radial-gradient(ellipse 28% 52% at 5% 42%,
-                    rgba(186, 62, 50, .12), transparent 72%),
+                    var(--mood-side-l), transparent 72%),
                 radial-gradient(ellipse 30% 56% at 96% 46%,
-                    rgba(120, 52, 104, .16), transparent 72%),
+                    var(--mood-side-r), transparent 72%),
                 /* 远处的城市天际线。整站要的是"她在窗边播到深夜"这个具体的景，
                    不是一张暗红渐变 —— 渐变无论怎么调，都只是"没画完的模板"。
                    楼是纯剪影，靠挡住底部余晖"切"出轮廓，不描边、不加光。 */
@@ -71,16 +146,21 @@
                 /* 城市光污染：一层极淡的暖雾压在楼脚上。
                    没有它，楼是"贴"在画面底部的黑纸片；有了它，楼像是隔着一层空气。 */
                 linear-gradient(to top,
-                    rgba(255, 150, 100, .11) 0%, rgba(255, 150, 100, .045) 8%, transparent 22%),
+                    var(--mood-haze) 0%, transparent 22%),
                 /* 底部辣椒红余温 */
                 radial-gradient(ellipse 78% 34% at 50% 104%,
-                    rgba(226, 58, 46, .38), transparent 74%),
+                    var(--mood-bottom), transparent 74%),
                 /* 内容区的光池：让中间那块"被照亮"，
                    否则大屏上文字是浮在虚空里 */
                 radial-gradient(ellipse 46% 34% at 50% 46%,
-                    rgba(226, 58, 46, .20), rgba(160, 44, 36, .07) 52%, transparent 76%),
+                    var(--mood-pool-a), var(--mood-pool-b) 52%, transparent 76%),
                 /* 基底：中间压住，让红色数字和粒子自己发光 */
-                radial-gradient(ellipse at 50% 40%, #261A17 0%, #1B1412 54%, #110C0B 100%);
+                radial-gradient(ellipse at 50% 40%,
+                    var(--mood-base-a) 0%, var(--mood-base-b) 54%, var(--mood-base-c) 100%);
+            /* ⚠️ 这三组值的数量必须等于上面 background-image 的层数（10 层）。
+               少一项不会报错 —— 浏览器会让最后一层循环取第一个值，
+               结果基底渐变被压成 140px 的方块并平铺，整屏浮出一层方格。
+               改层数时一定同步数这三行。 */
             background-size: 140px 140px, auto, auto, auto, auto, auto 24vh,
                              auto, auto, auto, auto;
             background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, repeat-x,
@@ -115,13 +195,15 @@
             z-index: 2;
             pointer-events: none;
             background: url("images/citylights.svg") repeat-x left bottom / auto 100%;
-            opacity: .82;
+            opacity: var(--mood-city);
             animation: cityBreathe 11s ease-in-out infinite;
         }
 
+        /* 明灭幅度跟着氛围走：平时是"城要睡了"的微弱起伏，
+           生辰期才是灯火全开的呼吸。 */
         @keyframes cityBreathe {
-            0%, 100% { opacity: .68; }
-            50%      { opacity: .95; }
+            0%, 100% { opacity: calc(var(--mood-city) * .74); }
+            50%      { opacity: calc(var(--mood-city) * 1.14); }
         }
 
         /* ---------- 画布 ---------- */
@@ -519,8 +601,8 @@
 
         #countdown-page.cd--visible { display: flex; }
 
-        /* 数字背后的红色余晖。粒子层在倒数页是关掉的，
-           这团光是代替它站在数字后面的东西。 */
+        /* 数字背后的光。安静期只留一层很薄的暖雾，
+           它不再是"聚光灯下的主角"，而是数字背后的一点余温。 */
         #countdown-page::before {
             content: '';
             position: absolute;
@@ -531,9 +613,9 @@
             transform: translate(-50%, -54%);
             pointer-events: none;
             background: radial-gradient(ellipse at center,
-                rgba(226, 58, 46, .20) 0%,
-                rgba(226, 58, 46, .07) 42%,
-                transparent 70%);
+                var(--mood-accent-glow) 0%,
+                transparent 68%);
+            opacity: .55;
         }
 
         #countdown-page > * { position: relative; }
@@ -567,27 +649,54 @@
             display: flex;
             align-items: baseline;
             gap: 14px;
-            color: var(--cream-50);
+            color: var(--mood-accent);
         }
 
+        /* 倒数的数字是「读」的，不是「喊」的。
+           原来是 200px / 800 字重 / 三层红光叠在一起 —— 那是生日蜡烛的语言。
+           一年三百五十天都这么点着，生日那天就没有灯可开了。
+           安静期：细体、暖白、一层薄光，像深夜电台的频率。 */
         #cd-days {
-            font-size: clamp(96px, 22vw, 200px);
-            font-weight: 800;
-            line-height: .92;
-            letter-spacing: -.02em;
+            font-size: clamp(64px, 13.5vw, 122px);
+            font-weight: 300;
+            line-height: 1;
+            letter-spacing: .01em;
             font-variant-numeric: tabular-nums;
-            color: var(--red-400);
-            text-shadow:
-                0 0 6px rgba(226, 58, 46, .5),
-                0 0 48px rgba(226, 58, 46, .45),
-                0 0 140px rgba(226, 58, 46, .22);
+            color: var(--mood-accent);
+            text-shadow: 0 0 56px var(--mood-accent-glow);
+            transition: color 1.2s ease, text-shadow 1.2s ease;
         }
 
         #cd-unit {
             font-family: var(--mono);
-            font-size: clamp(14px, 4vw, 20px);
-            letter-spacing: .1em;
-            color: rgba(255, 244, 230, .45);
+            font-size: clamp(12px, 3.2vw, 16px);
+            letter-spacing: .18em;
+            color: rgba(255, 244, 230, .32);
+        }
+
+        /* 一年走到哪儿了。
+           数字告诉你"还剩几天"，这条线告诉你"走到了哪里" ——
+           前者是读数，后者才是等待的手感。1px 不抢戏，看久了才知道它在动。 */
+        #cd-meter {
+            width: min(54vw, 230px);
+            height: 1px;
+            margin-top: 2px;
+            position: relative;
+            background: rgba(255, 244, 230, .09);
+            overflow: hidden;
+        }
+
+        #cd-meter i {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: calc(var(--year-progress, 0) * 100%);
+            background: linear-gradient(90deg,
+                rgba(255, 244, 230, .12),
+                var(--mood-accent));
+            opacity: .55;
+            transition: width 1.4s cubic-bezier(.22, .61, .36, 1);
         }
 
         /* 生日当天但演出尚未开始时，用这行替代数字 */
@@ -1630,6 +1739,7 @@
     <div class="mark"><span class="dot"></span><span id="cd-status">未开播</span></div>
     <div id="cd-label"></div>
     <div id="cd-number"><span id="cd-days">--</span><span id="cd-unit"></span></div>
+    <div id="cd-meter" aria-hidden="true"><i></i></div>
     <div id="cd-today"></div>
     <div id="cd-actions">
         <button class="fab fab--static" id="btn-timeline-cd" type="button"><i class="fab-ico">⊙</i><span>往年回忆</span></button>
@@ -2159,7 +2269,11 @@
             // 一朵一朵来。原来平均 0.4 秒一颗，天上永远同时挂着三四朵正在开的，
             // 看着像屏保；现在 4~7 秒一朵 —— 大部分时间是安静的夜空和城市，
             // 偶尔一朵开完、落净。稀疏才是礼花，密集只是噪点。
-            seedTimer=frames+240+Math.random()*180;
+            // 生辰期放开到 2~4 秒一朵：这几天本来就该热闹。
+            // 每次都重读 body 上的类 —— 这段几秒才跑一次，开销可以忽略；
+            // 缓存在变量里反而会踩坑：烟花的第一帧可能早于氛围类挂上。
+            festive=document.body.classList.contains('mode--festive');
+            seedTimer=frames+(festive?130+Math.random()*110:240+Math.random()*180);
             spawnSeed();
         }
         for(i=0;i<seeds.length;++i){
@@ -2311,7 +2425,6 @@
     };
 
     initVars();
-    startFireworks();
 </script>
 
 <script src="js/carousel.js"></script>
@@ -2386,7 +2499,25 @@
 
     (function () {
         var force = /[?&]celebrate\b/.test(window.location.search),
-            celebrating = force || HB.isCelebrating();
+            // ?quiet 强制看安静期。生日当天想对照两版时用得上。
+            forceQuiet = /[?&]quiet\b/.test(window.location.search),
+            auto = /[?&]auto\b/.test(window.location.search),
+            celebrating = !forceQuiet && (force || auto || HB.isCelebrating());
+
+        // ---------- 氛围分流 ----------
+        //
+        // 一年里只有生日那几天是热闹的，剩下三百多天都在等。
+        // 两段日子如果共用一套光，生日就没有待遇，平常也在喊。
+        // 这里只挂一个类，光、数字、城市亮度全由 CSS 令牌接管
+        // （见 :root 的「氛围令牌」一节）。
+        document.body.classList.add(celebrating ? 'mode--festive' : 'mode--quiet');
+
+        // 生辰期换一套粒子配色：平时是辣椒红，生日那几天是烛光金。
+        // CONFIG.theme 与 SITE.theme 是同一个对象，所以换掉 palette
+        // 就等于换掉整段演出的颜色，不用动粒子引擎。
+        if (celebrating && SITE.theme && SITE.theme.paletteFestive) {
+            SITE.theme.palette = SITE.theme.paletteFestive;
+        }
 
         if (celebrating) return;   // 走原有的引导层流程
 
@@ -2405,16 +2536,30 @@
         if (days === 0) {
             // 生日当天但已过庆祝期（celebrateDays 设为 0 时才可能）
             document.getElementById('cd-number').style.display = 'none';
+            document.getElementById('cd-meter').style.display = 'none';
             document.getElementById('cd-today').textContent = cd.todayText || '就是今天';
         } else {
             document.getElementById('cd-today').style.display = 'none';
             document.getElementById('cd-days').textContent = days;
             document.getElementById('cd-unit').textContent = cd.unit || '天';
+
+            // 一年走到哪儿了。用 365.25 兜住闰年，
+            // 差一天没人看得出来，但线会一直在动，不会有几天是死的。
+            var progress = Math.max(0, Math.min(1, (365.25 - days) / 365.25));
+            document.getElementById('cd-meter')
+                .style.setProperty('--year-progress', progress.toFixed(4));
         }
 
         // 倒数页也放点音乐控制，但不自动播放
         document.body.classList.add('countdown-mode');
     }());
+
+    // 烟花只在生辰期跑。
+    //
+    // 安静期的画布本身是 opacity: 0 的，可原来的 rAF 照样每帧清屏、算粒子，
+    // 一年三百多天都在空转。手机上等于白白发热。
+    // 放在氛围分流之后判断，此时 body 上的类一定已经挂好了。
+    if (document.body.classList.contains('mode--festive')) startFireworks();
 
     // 粒子文字引擎需要 DOM 就绪后再初始化待机画面。
     //
