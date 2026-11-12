@@ -46,8 +46,8 @@ var S = {
       // 待机状态：只显示一个图标，等用户点击
       S.UI.simulate('|#icon ' + (CONFIG.icons[0] || 'heart'));
     } else {
-      // 正式播放：倒数 + 祝福语 + 图标
-      S.UI.simulate(CONFIG.buildSequence(true));
+      // 正式播放：祝福语 + 头像 + 图标（不再有 3、2、1 倒数，见 config.js）
+      S.UI.simulate(CONFIG.buildSequence());
     }
 
     S.Drawing.loop(function () {

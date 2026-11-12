@@ -1887,7 +1887,8 @@
 
         if (y.messages && y.messages.length) CONFIG.messages = y.messages;
         if (y.icons && y.icons.length)       CONFIG.icons = y.icons;
-        if (y.countdown != null)             CONFIG.countdown = y.countdown;
+        // 不再读 y.countdown —— 倒数段已整体删除（见 js/config.js 的
+        // buildSequence 注释）。老 data 文件里的 countdown 字段一律忽略。
         if (y.photos)                        CONFIG.photos = y.photos;
     }());
 

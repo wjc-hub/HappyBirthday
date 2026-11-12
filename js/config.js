@@ -177,7 +177,6 @@ var CONFIG = {
   // 下面这些由当年的 data 文件提供，在 index.html 里动态填充
   icons: ['heart', 'heart-empty', 'heart'],
   messages: [],
-  countdown: 3,
   photos: [],
   photoInterval: 4000,
   showPortrait: (SITE.show && SITE.show.portrait) !== false,
@@ -185,16 +184,18 @@ var CONFIG = {
 
 // 拼装粒子文字引擎所需的动作序列。
 // 内容取自 CONFIG，而 CONFIG 的内容字段由当年的 data 文件注入。
-CONFIG.buildSequence = function (withCountdown) {
+CONFIG.buildSequence = function () {
   // 原来这里有一个前导空帧（''），作用是"让画面先从空白开始"。
   // 现在演出前面有一段三十秒的开场，交棒时画面里已经是收拢的光核 ——
   // 再空一帧，读起来是"光核停住了，卡了一下"。
   // 所以第一帧直接就是「祝」，光核散开成字。
+  //
+  // 更早的版本在这里还会先插一段 3、2、1 大数字倒数。开场「三年的光」
+  // 已经把情绪推到位了，再接三秒倒数等于把观众从回忆里拽出来数数，
+  // 所以那段彻底删掉 —— 不是把 countdown 设成 0，而是这里不再读它。
+  // 这样即便某个年份的 data 文件里还留着 countdown: 3（旧的浏览器缓存、
+  // 或者以后照老模板新建的文件），也不会再冒出一段倒数。
   var parts = [];
-
-  if (withCountdown && CONFIG.countdown > 0) {
-    parts.push('#countdown ' + CONFIG.countdown);
-  }
 
   (CONFIG.messages || []).forEach(function (m) {
     parts.push(SITE.fill(m));
@@ -224,14 +225,13 @@ CONFIG.buildSequence = function (withCountdown) {
 CONFIG.timeline = function () {
   var big = window.innerWidth > 500 && window.innerHeight > 500,
       base = big ? 2000 : 2600,
-      perCount = big ? 1000 : 1200,
       show = SITE.show || {},
       t = 0,
       portraitStart = null,
       portraitEnd = null;
 
-  // 没有前导空帧了（见 buildSequence）。序列一启动就是「祝」。
-  t += (CONFIG.countdown || 0) * perCount;  // 倒数
+  // 没有前导空帧、也没有倒数帧了（见 buildSequence）。
+  // 序列一启动就是「祝」，所以时间轴从 0 起算。
 
   (CONFIG.messages || []).forEach(function (m) {
     var s = SITE.fill(m),

@@ -245,11 +245,17 @@ var GRID_GAP = (window.innerWidth > 500 && window.innerHeight > 500) ? 6 : 5;
 
 ### 想找回 3、2、1
 
-开场和「祝」之间原本有个倒计时，现在关掉了（`data/YYYY.js` 里 `countdown: 0`）。
+**现在没有这个开关了。** 倒数段不是被"设成 0"，而是从代码里整体删掉了：
 
-改成 `3` 就会数三下。但要注意：`js/config.js` 的 `buildSequence` 已经不再
-放前导空帧，倒数会紧贴着开场的光核出现——想要原来那种"黑场 → 3、2、1"，
-还得把它开头的 `var parts = [];` 改回 `['']`。
+- `js/config.js` 的 `buildSequence` 不再读 `countdown`，序列第一帧就是「祝」
+- `data/YYYY.js` 里的 `countdown` 字段已经删除；就算你手动加回去也不会生效
+- `index.html` 不再把年份数据里的 `countdown` 注入 `CONFIG`
+
+真想要它回来，得自己拼一段：在 `buildSequence` 的 `parts` 前面 push 一次
+`'#countdown 3'`，引擎里处理这条指令的代码还在（`js/index.js` 的
+`case 'countdown'`），它会把 3、2、1 逐个聚成粒子数字。
+先想清楚要不要——开场「三年的光」已经把情绪推满了，接三秒数数会把它打断。
+
 - **人数要真实**。光点的数量是按人数开方算出来的，最后一个采样点决定
   收尾那句「一百三十八万人，今晚都在」。随便填一个数，那句话就会说错。
 

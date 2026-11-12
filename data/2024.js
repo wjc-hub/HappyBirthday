@@ -82,7 +82,6 @@ HB.year(2024, {
     '开始的地方',   // 这一年只有两个半月，但它是一切的起点
   ],
 
-  countdown: 0,        // 开场的光核直接接「祝」，不再数 3、2、1
   icons: ['heart', 'heart-empty', 'heart'],
 
   danmaku: [

@@ -1035,6 +1035,34 @@ getComputedStyle(document.body).backgroundSize
 `CONFIG.timeline()` 里对应那行 `t += base * 0.6` 也要一起去掉，
 否则弹幕淡出、长信浮出的时机整体晚 1.2 秒。
 
+#### 20.1.1 第二次：不是调成 0，是把开关拆了
+
+当天深夜用户回了一句：
+
+> 3、2、1 倒计时还在，去掉。
+
+查了运行时的值：`CONFIG.countdown === 0`，`buildSequence()` 拼出来的
+第一帧就是「祝」——代码是对的，他看到的还是旧画面。
+
+这暴露了一个设计问题：**我们把"关掉"实现成了一个可以被数据推翻的默认值。**
+`countdown` 有两条进入路径（`data/YYYY.js` 注入 + `CONFIG` 默认值 3），
+只要浏览器缓存了其中任何一份旧文件，倒数就会回来，而且改代码的人
+看着源码会以为已经删干净了。
+
+所以这一版把它连根拔掉：
+
+| 位置 | 处理 |
+|---|---|
+| `js/config.js` `CONFIG` | 删掉 `countdown: 3` 默认值 |
+| `js/config.js` `buildSequence` | 删掉插入 `#countdown N` 的分支，参数 `withCountdown` 一起去掉 |
+| `js/config.js` `timeline` | 删掉 `t += countdown * perCount` 与 `perCount` 变量 |
+| `js/index.js` | `buildSequence(true)` → `buildSequence()` |
+| `index.html` | 不再 `if (y.countdown != null) CONFIG.countdown = y.countdown` |
+| `data/2024·2025·2026·_template.js` | 删掉 `countdown` 字段本身 |
+
+引擎里处理 `#countdown` 的那段（`js/index.js` 的 `case 'countdown'`）留着 ——
+它是通用能力，手动拼 `'#countdown 3'` 还能用，只是没有任何代码会自动拼它了。
+
 ### 20.2 名字和头像，只出现一次
 
 序列原来是：
