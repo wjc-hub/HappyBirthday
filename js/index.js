@@ -13,10 +13,20 @@
 */
 
 
-// 采样网格间距：桌面大屏 9px，小屏 6px。
+// 采样网格间距：桌面大屏 6px，小屏 5px。
 // 采样（ShapeBuilder）和绘制（Drawing.drawCircle 的光斑上限）都要用它，
 // 所以提到最外面共用一个值 —— 两边一旦不一致，光斑就会盖住网格的缝。
-var GRID_GAP = (window.innerWidth > 500 && window.innerHeight > 500) ? 9 : 6;
+//
+// 原先是 9 / 6。收到 6 / 5 之后每屏粒子数约为原来的 2.25 / 1.44 倍，
+// 字的笔画从"能用光晕连起来"变成"本身就是一笔"：
+// 9 的间距下一个四字祝福只剩七八百颗，横竖之间要靠糊才连得上，
+// 放大看是一层点阵；收到 6 之后笔画自己站得住，才像光。
+//
+// 代价是每秒要画一倍多的粒子：不做任何优化时 61fps → 40。
+// 见 Drawing.drawCircle 里的 spriteFor —— 把缩小那一步烘进贴图之后回到 52。
+// 手机上 5 是下限了：再密下去，390 宽塞五个字时每字不足 40 个采样点，
+// 密集反而糊成一块亮斑。
+var GRID_GAP = (window.innerWidth > 500 && window.innerHeight > 500) ? 6 : 5;
 
 var S = {
   init: function (start) {
@@ -73,6 +83,7 @@ S.Drawing = (function () {
   // 透明度不烘进纹理，改由 globalAlpha 施加 —— 否则每个 alpha 值都要各存
   // 一份纹理，缓存会炸。
   var glowCache = {},
+      sizedCache = {},     // 同一种颜色、同一个直径的成品贴图，见 spriteFor
       SPRITE_SIZE = 64;
 
   // 颜色量化到 8 的倍数。渐变配色模式下粒子颜色是按坐标连续插值出来的，
@@ -80,6 +91,26 @@ S.Drawing = (function () {
   function quantize(v) {
     v = (v + 4) & ~7;
     return v < 0 ? 0 : (v > 255 ? 255 : v);
+  }
+
+  // 按「颜色 + 最终直径」预生成贴图。
+  //
+  // 原来每颗粒子都是把 64px 的纹理缩到 4~7px 再画。采样间距从 9 收到 6 之后
+  // 一帧要画三千六百多颗，三千六百次带重采样的 drawImage 把帧率从 61 压到 40。
+  // 直径本来就是有限的几种（量化到整数像素后不超过十种），先把缩小这一步
+  // 烘进贴图，运行时只剩一次无缩放贴图，重采样成本归零。
+  function spriteFor(c, d) {
+    var px = Math.max(2, Math.round(d)),
+        key = quantize(c.r) + '_' + quantize(c.g) + '_' + quantize(c.b) + '_' + px,
+        s = sizedCache[key];
+
+    if (s) return s;
+
+    s = document.createElement('canvas');
+    s.width = s.height = px;
+    s.getContext('2d').drawImage(glowSprite(c), 0, 0, px, px);
+    sizedCache[key] = s;
+    return s;
   }
 
   function glowSprite(c) {
@@ -228,10 +259,13 @@ S.Drawing = (function () {
       // 手机网格是 6，粒子半径却还是同一套随机值，不设上限的话
       // 手机上光斑相对字宽会比桌面大一倍，字直接糊掉。
       var d = Math.min(r * (glowLevel >= 2 ? 2.8 : 2.2), GRID_GAP * 1.45),
-          a = c.a < 0 ? 0 : (c.a > 1 ? 1 : c.a);
+          a = c.a < 0 ? 0 : (c.a > 1 ? 1 : c.a),
+          px = Math.max(2, Math.round(d));
 
       context.globalAlpha = a;
-      context.drawImage(glowSprite(c), p.x - d / 2, p.y - d / 2, d, d);
+      // 坐标也取整：亚像素落点会让浏览器退回重采样路径，
+      // 预缩放就白做了。半像素的偏差在一颗 5px 的光点上不可见。
+      context.drawImage(spriteFor(c, d), (p.x - px / 2) | 0, (p.y - px / 2) | 0);
     }
   }
 }());
@@ -800,37 +834,43 @@ S.ShapeBuilder = (function () {
 
   // sampler 决定某个像素是否生成粒子。
   // 默认看透明通道（原版行为）；传入自定义函数可改为按亮度等方式判断。
-  function processCanvas(sampler) {
+  //
+  // step 是这一帧的采样步长，默认等于网格间距。
+  // 头像需要更疏的步长（见 portrait）：文字是一笔一画，越密越像光；
+  // 头像只有一圈轮廓，密了之后光晕互相叠加，轮廓反而糊成一团云。
+  function processCanvas(sampler, step) {
+    step = step || gap;
+
     var pixels = shapeContext.getImageData(0, 0, shapeCanvas.width, shapeCanvas.height).data,
         dots = [],
+        W = shapeCanvas.width,
+        H = shapeCanvas.height,
+        fx = W,
+        fy = H,
+        w = 0,
+        h = 0,
         x = 0,
         y = 0,
-        fx = shapeCanvas.width,
-        fy = shapeCanvas.height,
-        w = 0,
-        h = 0;
+        i = 0;
 
     sampler = sampler || function (px, i) { return px[i + 3] > 0; };
 
-    for (var p = 0; p < pixels.length; p += (4 * gap)) {
-      if (sampler(pixels, p)) {
+    // 按行遍历，不依赖"画布宽度是步长的整数倍"。
+    // 原来的单循环用 p += step * 4 * width 跨行，步长和画布对齐一旦不一致就会错位。
+    for (y = 0; y < H; y += step) {
+      for (x = 0; x < W; x += step) {
+        i = (y * W + x) * 4;
+        if (!sampler(pixels, i)) continue;
+
         dots.push(new S.Point({
           x: x,
           y: y
         }));
 
-        w = x > w ? x : w;
-        h = y > h ? y : h;
-        fx = x < fx ? x : fx;
-        fy = y < fy ? y : fy;
-      }
-
-      x += gap;
-
-      if (x >= shapeCanvas.width) {
-        x = 0;
-        y += gap;
-        p += gap * 4 * shapeCanvas.width;
+        if (x > w) w = x;
+        if (y > h) h = y;
+        if (x < fx) fx = x;
+        if (y < fy) fy = y;
       }
     }
 
@@ -861,7 +901,11 @@ S.ShapeBuilder = (function () {
       image.onload = function () {
         shapeContext.clearRect(0, 0, shapeCanvas.width, shapeCanvas.height);
         shapeContext.drawImage(this, 0, 0, a.h * 0.6, a.h * 0.6);
-        callback(processCanvas());
+
+        // 图标（爱心那几个）和头像一样是"图"，采样步长跟着放大一档。
+        // 用文字那档密度去采一块实心图形，平面会被粒子填满，
+        // 出来是一团绒毛，看不出轮廓线。
+        callback(processCanvas(null, Math.round(gap * 1.5)));
       };
 
       image.onerror = function () {
@@ -882,6 +926,14 @@ S.ShapeBuilder = (function () {
           a = S.Drawing.getArea();
 
       image.onload = function () {
+        // 头像的采样步长要比文字疏一档。
+        //
+        // 文字是一笔一画，采样越密笔画越实；头像只有一圈轮廓线，
+        // 采样一密，相邻粒子的光晕就互相叠加，轮廓被填成一块云 ——
+        // 看得见"有个东西"，看不出是什么。
+        // 桌面 6 → 9，手机 5 → 8，与文字密度提升之前的观感一致。
+        var step = Math.round(gap * 1.5);
+
         // 目标尺寸：占屏幕短边的 62%，并对齐到 gap 网格
         var target = Math.min(a.w, a.h) * 0.62,
             ratio = Math.min(target / this.width, target / this.height),
@@ -928,11 +980,11 @@ S.ShapeBuilder = (function () {
                 x0 = px0 % W,
                 y0 = Math.floor(px0 / W);
 
-            for (var dy = 0; dy < gap; dy++) {
+            for (var dy = 0; dy < step; dy++) {
               var y = y0 + dy;
               if (y >= H) break;
 
-              for (var dx = 0; dx < gap; dx++) {
+              for (var dx = 0; dx < step; dx++) {
                 var x = x0 + dx;
                 if (x >= W) break;
 
@@ -953,7 +1005,7 @@ S.ShapeBuilder = (function () {
           };
         }
 
-        var shape = processCanvas(sampler);
+        var shape = processCanvas(sampler, step);
 
         // 亮度阈值不合适时可能一个点都取不到，退回文字避免白屏
         if (!shape.dots.length) {
@@ -1143,26 +1195,17 @@ S.Shape = (function () {
         d++;
       }
 
-      for (var i = d; i < dots.length; i++) {
-        if (dots[i].s) {
-          dots[i].stopBreathe();
-          dots[i].move(new S.Point({
-            z: Math.random() * 20 + 10,
-            a: Math.random(),
-            h: 20
-          }));
-
-          dots[i].s = false;
-          dots[i].e = 0.04;
-          dots[i].move(new S.Point({
-            x: Math.random() * a.w,
-            y: Math.random() * a.h,
-            a: 0.3, //.4
-            z: Math.random() * 4,
-            h: 0
-          }));
-        }
-      }
+      // 目标形状比现有粒子少时，多出来的粒子直接移除。
+      //
+      // 原实现是把它们甩到画面随机位置、透明度留 0.3 当"星尘"。
+      // 那时文字和头像的粒子数差得不远（一千六 vs 八百），看着像浮尘；
+      // 采样密度收到 6 之后，文字一帧 3667 颗、头像只有八百 ——
+      // 两千八百颗星尘铺满全屏，头像像浸在雪里，而且每帧都要各画一次，
+      // 头像段的帧率被拖到 33。
+      //
+      // 直接截断：少掉的粒子本来就该消失，不需要"飞走"这个动作。
+      // 下一帧若需要更多粒子，上面的分支会补上并从暗处淡入。
+      dots.length = d;
     },
 
     render: function () {

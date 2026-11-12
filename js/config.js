@@ -123,10 +123,13 @@ var SITE = {
     // 祝福语播完后，粒子聚成她的头像
     portrait: true,
 
-    // 头像每次停留多久（毫秒）。序列是 头像 → 昵称 → 头像，
-    // 所以头像总露出时间约为这个值的两倍。
-    // 觉得看不够就调大，比如 9000。
-    portraitHold: 5000,
+    // 头像每次停留多久（毫秒）。
+    //
+    // 原来序列是「头像 → 昵称 → 头像」，两次各 5 秒，看着够看；
+    // 现在昵称和第二次头像都删了（名字在「祝 / 名字 / 生日快乐」里已经念过），
+    // 只剩一次 —— 而粒子从画面外围飞拢、聚成一张脸要 2 秒上下，
+    // 5 秒里有一半时间看到的是散点。所以这一次给到 8.5 秒。
+    portraitHold: 8500,
 
     // 夹在两个头像之间的昵称停留多久（毫秒）
     accentHold: 2000,
@@ -183,7 +186,11 @@ var CONFIG = {
 // 拼装粒子文字引擎所需的动作序列。
 // 内容取自 CONFIG，而 CONFIG 的内容字段由当年的 data 文件注入。
 CONFIG.buildSequence = function (withCountdown) {
-  var parts = [''];   // 前导空帧：让画面先从空白开始
+  // 原来这里有一个前导空帧（''），作用是"让画面先从空白开始"。
+  // 现在演出前面有一段三十秒的开场，交棒时画面里已经是收拢的光核 ——
+  // 再空一帧，读起来是"光核停住了，卡了一下"。
+  // 所以第一帧直接就是「祝」，光核散开成字。
+  var parts = [];
 
   if (withCountdown && CONFIG.countdown > 0) {
     parts.push('#countdown ' + CONFIG.countdown);
@@ -194,12 +201,12 @@ CONFIG.buildSequence = function (withCountdown) {
   });
 
   // 祝福语之后聚成头像，这是整段演出的高潮。
-  // 头像 → 昵称 → 头像，来回一次，强化「这是她」的印记。
-  // 昵称用 #accent 而非普通文字帧，让它沿用头像的渐变配色，
-  // 高潮段中途不会突然变回杂色。
+  //
+  // 原来这里是「头像 → 昵称 → 头像」，来回一次。但昵称在
+  // 「祝 / 辣椒素素素 / 生日快乐」里已经念过一遍，再夹在中间，
+  // 等于同一个人被介绍两次；头像也跟着出现两遍。
+  // 现在只留一次头像：念名字 → 看脸，一次说完。
   if (CONFIG.showPortrait && SITE.avatar) {
-    parts.push('#portrait ' + SITE.avatar);
-    parts.push('#accent ' + SITE.name);
     parts.push('#portrait ' + SITE.avatar);
   }
 
@@ -223,7 +230,7 @@ CONFIG.timeline = function () {
       portraitStart = null,
       portraitEnd = null;
 
-  t += base * 0.6;                          // 前导空帧
+  // 没有前导空帧了（见 buildSequence）。序列一启动就是「祝」。
   t += (CONFIG.countdown || 0) * perCount;  // 倒数
 
   (CONFIG.messages || []).forEach(function (m) {
@@ -239,11 +246,10 @@ CONFIG.timeline = function () {
   });
 
   if (CONFIG.showPortrait && SITE.avatar) {
-    var hold = (show.portraitHold == null ? 7000 : show.portraitHold),
-        accent = (show.accentHold == null ? 2600 : show.accentHold);
+    var hold = (show.portraitHold == null ? 7000 : show.portraitHold);
 
-    portraitStart = t;                      // 第一个头像帧出现的时刻
-    t += hold * 2 + accent;                 // 头像 → 昵称 → 头像
+    portraitStart = t;                      // 头像帧出现的时刻
+    t += hold;                              // 只出现一次，不再夹昵称
     portraitEnd = t;                        // 高潮段结束
   }
 

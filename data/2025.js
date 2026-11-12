@@ -144,7 +144,7 @@ HB.year(2025, {
     '全部的我',     // 她 2025-12-11 那篇：「原来大家想了解的是全部的我」
   ],
 
-  countdown: 3,
+  countdown: 0,        // 开场的光核直接接「祝」，不再数 3、2、1
   icons: ['heart', 'heart-empty', 'heart'],
 
   danmaku: [

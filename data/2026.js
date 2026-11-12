@@ -98,7 +98,7 @@ HB.year(2026, {
     '好幸福',       // 她的签名：「我真的希望所有人都能好幸福好幸福」
   ],
 
-  countdown: 3,
+  countdown: 0,        // 开场的光核直接接「祝」，不再数 3、2、1
   icons: ['heart', 'heart-empty', 'heart'],
 
   danmaku: [

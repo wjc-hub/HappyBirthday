@@ -1976,12 +1976,19 @@
 
             // 头像高潮时让路：提前 2 秒淡出，高潮结束后淡回来。
             // 淡出期间不再发射新弹幕，画面彻底干净。
+            //
+            // 淡回来这件事不在这里排 —— 时间轴算的是"指令下发的时刻"，
+            // 而粒子从上一个形状飞到头像要一秒多。按时间轴排的话，
+            // 弹幕会在头像刚成形时涌回来，正好盖住脸。
+            // 真正的时刻是 #portrait 触发 onPortraitReveal，那里再排（见下）。
             if (tl.portraitStart != null) {
                 var lead = cfg.danmakuFadeLead == null ? 2000 : cfg.danmakuFadeLead;
 
                 setTimeout(function () { Danmaku.fadeOut(); },
                            Math.max(0, tl.portraitStart - lead));
-                setTimeout(function () { Danmaku.fadeIn(); }, tl.portraitEnd);
+
+                // 兜底：万一头像帧没触发（图片加载失败等），弹幕不能死在那里
+                setTimeout(function () { Danmaku.fadeIn(); }, tl.portraitEnd + 6000);
             }
         }
 
@@ -2522,6 +2529,12 @@
         flash.classList.remove('flash--on');
         void flash.offsetWidth;
         flash.classList.add('flash--on');
+
+        // 弹幕从头像停留结束之后才回来。
+        // 这里才是"头像真的出现了"的时刻 —— 时间轴里的 portraitStart
+        // 只是指令下发的时间，粒子还要飞一秒多才聚成这张脸。
+        setTimeout(function () { Danmaku.fadeIn(); },
+                   (SITE.show && SITE.show.portraitHold || 5000) + 500);
 
         // 烟花齐放：在观众上方一圈同时炸开，把视线托起来
         var burst = isMobile ? 4 : 7;
