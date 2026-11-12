@@ -262,18 +262,28 @@ var Letter = (function () {
 
   三连彩蛋
   ========
-  点赞 / 投币 / 收藏。可以一个个点，也可以直接按「一键三连」。
+  跟 B 站一样：长按「点赞」就是一键三连，轻点只是点赞。
+  投币、收藏照样能单独点，三个都亮了同样算连成。
+
+  —— 为什么去掉「一键三连」按钮：
+  那本来就不是 B 站的交互。多一个高饱和主按钮，"三连"这件事就从
+  一个顺手的小动作，变成了画面里最抢眼的东西，反而更假。
 
 */
 
 var Triple = (function () {
 
   var root,
-      allBtn,
+      row,
+      hint,
       states = { like: false, coin: false, fav: false },
       fired = false,
-      locked = false,          // 一键三连结亮动画期间锁住，防止重复触发
-      onComplete = null;
+      locked = false,          // 三连依次点亮期间锁住，防止重复触发
+      onComplete = null,
+
+      HOLD_MS  = 900,          // 长按到这个时长算三连。700 容易误触，1200 像没反应
+      TAP_MS   = 260,          // 短于这个算轻点：只点亮点赞
+      STEP_MS  = 110;          // 三连时三个按钮依次点亮的间隔
 
   // 图标用内联 SVG 描边（feather 的路径），跟全站细线条一致。
   // 上一版是 emoji（👍🪙⭐）—— 彩色、圆润、自带立体感，进这套画面就是贴纸。
@@ -299,6 +309,15 @@ var Triple = (function () {
     root = document.createElement('div');
     root.id = 'triple';
 
+    // 一行很淡的说明。没有它，「长按」这个动作没人会去试 ——
+    // 藏起来的交互等于不存在。三连完成后自己退场。
+    hint = document.createElement('p');
+    hint.className = 'triple-hint';
+    hint.textContent = '长按「点赞」一键三连';
+
+    row = document.createElement('div');
+    row.className = 'triple-row';
+
     ITEMS.forEach(function (item) {
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -307,47 +326,112 @@ var Triple = (function () {
       btn.setAttribute('aria-label', item.label);
       btn.innerHTML = svg(item.icon) + '<span>' + item.label + '</span>';
 
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (locked || fired || states[item.key]) return;
-
-        // 一个个点也行，点到第三个自动触发
-        light(item.key, btn);
-        settle();
-      });
-
-      root.appendChild(btn);
-    });
-
-    // 一键三连：三个依次亮起，130ms 的间隔让"三下"这件事被看见。
-    // 不带图标 —— 三个小点在这个尺寸下读起来像省略号，不如只留文字。
-    allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'triple-all';
-    allBtn.setAttribute('aria-label', '一键三连');
-    allBtn.textContent = '一键三连';
-
-    allBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (locked || fired) return;
-
-      locked = true;
-
-      ITEMS.forEach(function (item, i) {
-        setTimeout(function () {
-          var btn = root.querySelector('.triple-btn[data-key="' + item.key + '"]');
+      if (item.key === 'like') {
+        bindHold(btn);
+      } else {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (fired || states[item.key]) return;
           light(item.key, btn);
+          settle();
+        });
+      }
 
-          if (i === ITEMS.length - 1) {
-            locked = false;
-            settle();
-          }
-        }, i * 130);
-      });
+      row.appendChild(btn);
     });
 
-    root.appendChild(allBtn);
+    root.appendChild(hint);
+    root.appendChild(row);
     document.body.appendChild(root);
+  }
+
+  // 长按点赞 = 一键三连。
+  //
+  // 进度直接从按钮本身的底色里涨出来（--hold 0 → 1，CSS 里算百分比），
+  // 不用在按钮外面再套一圈环：这套按钮是药丸形，套上去的圆环和它不同形，
+  // 一看就是贴上去的。
+  function bindHold(btn) {
+
+    var raf = null,
+        t0 = 0,
+        done = false;
+
+    function tick() {
+      var p = Math.min(1, (performance.now() - t0) / HOLD_MS);
+      btn.style.setProperty('--hold', p.toFixed(3));
+
+      if (p >= 1) {
+        done = true;
+        cancelAnimationFrame(raf);
+        btn.style.setProperty('--hold', '1');
+
+        // 满格先停一拍再交棒。立刻撤掉 holding，进度会瞬间退回去，
+        // "填满"这个结果根本没被人看见，就只剩下三个按钮突然变红。
+        setTimeout(function () {
+          btn.classList.remove('triple-btn--holding');
+          btn.style.setProperty('--hold', '0');
+        }, 140);
+
+        // 到点给一下手的反馈。手机上这一下比任何动画都直接
+        if (navigator.vibrate) navigator.vibrate(14);
+
+        tripleAll();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+
+    function release() {
+      if (done) { done = false; return; }   // 已经连成了，别再当成一次轻点
+
+      cancelAnimationFrame(raf);
+      var held = performance.now() - t0;
+
+      btn.classList.remove('triple-btn--holding');
+      btn.style.setProperty('--hold', '0');
+
+      // 轻点 = 只点赞（B 站的行为）。要投币、收藏还是得自己点
+      if (held < TAP_MS && !fired && !states.like) {
+        light('like', btn);
+        settle();
+      }
+    }
+
+    btn.addEventListener('pointerdown', function (e) {
+      if (fired) return;
+      e.preventDefault();
+      // 抓住指针：手指按住后滑出按钮也不丢，松手一定收得到。
+      // 合成事件（测试、或某些浏览器）里没有活动指针会抛 NotFoundError，忽略即可
+      try {
+        if (btn.setPointerCapture) btn.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      t0 = performance.now();
+      done = false;
+      btn.classList.add('triple-btn--holding');
+      raf = requestAnimationFrame(tick);
+    });
+
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+  }
+
+  // 一次点亮三个，按 STEP_MS 依次 —— 让"点了一下，得到三个"这件事被看见，
+  // 而不是三个同时变红、像一次状态刷新。
+  function tripleAll() {
+    if (fired || locked) return;
+    locked = true;
+
+    ITEMS.forEach(function (item, i) {
+      setTimeout(function () {
+        light(item.key, row.querySelector('.triple-btn[data-key="' + item.key + '"]'));
+
+        if (i === ITEMS.length - 1) {
+          locked = false;
+          settle();
+        }
+      }, i * STEP_MS);
+    });
   }
 
   function light(key, btn) {

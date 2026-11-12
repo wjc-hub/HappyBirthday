@@ -64,17 +64,29 @@
                     rgba(186, 62, 50, .12), transparent 72%),
                 radial-gradient(ellipse 30% 56% at 96% 46%,
                     rgba(120, 52, 104, .16), transparent 72%),
+                /* 远处的城市天际线。整站要的是"她在窗边播到深夜"这个具体的景，
+                   不是一张暗红渐变 —— 渐变无论怎么调，都只是"没画完的模板"。
+                   楼是纯剪影，靠挡住底部余晖"切"出轮廓，不描边、不加光。 */
+                url("images/skyline.svg"),
+                /* 城市光污染：一层极淡的暖雾压在楼脚上。
+                   没有它，楼是"贴"在画面底部的黑纸片；有了它，楼像是隔着一层空气。 */
+                linear-gradient(to top,
+                    rgba(255, 150, 100, .11) 0%, rgba(255, 150, 100, .045) 8%, transparent 22%),
                 /* 底部辣椒红余温 */
                 radial-gradient(ellipse 78% 34% at 50% 104%,
-                    rgba(226, 58, 46, .30), transparent 72%),
+                    rgba(226, 58, 46, .38), transparent 74%),
                 /* 内容区的光池：让中间那块"被照亮"，
                    否则大屏上文字是浮在虚空里 */
                 radial-gradient(ellipse 46% 34% at 50% 46%,
                     rgba(226, 58, 46, .20), rgba(160, 44, 36, .07) 52%, transparent 76%),
                 /* 基底：中间压住，让红色数字和粒子自己发光 */
                 radial-gradient(ellipse at 50% 40%, #261A17 0%, #1B1412 54%, #110C0B 100%);
-            background-size: 140px 140px, auto, auto, auto, auto, auto, auto, auto;
-            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+            background-size: 140px 140px, auto, auto, auto, auto, auto 24vh,
+                             auto, auto, auto, auto;
+            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, repeat-x,
+                             no-repeat, no-repeat, no-repeat, no-repeat;
+            background-position: 0 0, 0 0, 0 0, 0 0, 0 0, left bottom,
+                             0 0, 0 0, 0 0, 0 0;
             font-family: var(--sans);
             -webkit-tap-highlight-color: transparent;
         }
@@ -90,6 +102,26 @@
             inset: 0;
             z-index: 1;
             pointer-events: none;
+        }
+
+        /* 城市窗灯。楼是静止的剪影（在 body 的背景层里），灯单独一层，
+           只让这一层极慢地明灭。画进同一张图里，会连楼一起亮 —— 像屏幕在变。 */
+        #city {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 24vh;
+            z-index: 2;
+            pointer-events: none;
+            background: url("images/citylights.svg") repeat-x left bottom / auto 100%;
+            opacity: .82;
+            animation: cityBreathe 11s ease-in-out infinite;
+        }
+
+        @keyframes cityBreathe {
+            0%, 100% { opacity: .68; }
+            50%      { opacity: .95; }
         }
 
         /* ---------- 画布 ---------- */
@@ -1329,19 +1361,28 @@
               整块 UI 弹跳会让整个界面跟着抖；而"从天上掉雨"跟"我按了三下"没关系。
            3. 没有一键三连。 */
 
+        /* 长按点赞的进度值 0→1，由 JS 每帧写入。
+           注册成 <number> 才能写 transition —— 松手时进度是弹回去的，
+           不是啪一下清空。 */
+        @property --hold {
+            syntax: '<number>';
+            inherits: false;
+            initial-value: 0;
+        }
+
         #triple {
             position: fixed;
             /* 左右都锚住 + 内部居中，不要用 left:50% + translateX(-50%)：
                fixed 元素在 left:50% 之后，shrink-to-fit 的可用宽度只剩半屏，
-               窄屏上四个按钮被压进 256px 里，文字直接竖排。 */
+               窄屏上按钮被压进 256px 里，文字直接竖排。 */
             left: 0;
             right: 0;
             bottom: calc(26px + env(safe-area-inset-bottom, 0px));
             z-index: 9400;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 10px;
+            gap: 11px;
             transform: translateY(14px);
             opacity: 0;
             visibility: hidden;
@@ -1359,7 +1400,29 @@
             pointer-events: auto;
         }
 
+        .triple-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* 一行说明。没有它，"长按"这个动作没人会去试。 */
+        .triple-hint {
+            margin: 0;
+            font-size: 11.5px;
+            letter-spacing: .16em;
+            color: rgba(255, 244, 230, .38);
+            transition: opacity .5s ease, transform .5s ease;
+        }
+
+        #triple.triple--complete .triple-hint {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
         .triple-btn {
+            position: relative;      /* 按住时的进度线要贴着按钮定位 */
             display: flex;
             align-items: center;
             gap: 7px;
@@ -1376,8 +1439,13 @@
             cursor: pointer;
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
+            /* 长按要"按得住"：不能被选中、不能被长按菜单、不能跟着页面滚 */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
             transition: color .3s, background .3s, border-color .3s,
-                        box-shadow .4s, transform .25s;
+                        box-shadow .4s, transform .25s, --hold .3s ease;
         }
 
         .triple-btn:hover {
@@ -1387,8 +1455,24 @@
 
         .triple-btn:active { transform: scale(.96); }
 
-        .triple-btn svg,
-        .triple-all svg {
+        /* 按住期间：底色从左边涨上来，就是进度条本身。
+           不套外圈环 —— 药丸形的按钮套一个圆环，一眼是贴上去的。
+           前沿留 22% 宽的渐隐：硬分界会把按钮劈成两块色块，看着像坏了。 */
+        .triple-btn--holding {
+            color: #FFF1E4;
+            border-color: rgba(255, 96, 72, .42);
+            background-image: linear-gradient(90deg,
+                rgba(226, 58, 46, .58) 0,
+                rgba(226, 58, 46, .58) calc(var(--hold, 0) * 100% - 26%),
+                rgba(226, 58, 46, 0) calc(var(--hold, 0) * 100%));
+            box-shadow: 0 0 calc(6px + var(--hold, 0) * 20px) rgba(226, 58, 46, .32);
+            transform: scale(.985);
+            /* 按住时不能让 background 带过渡，否则填充永远追不上指针 */
+            transition: color .18s, border-color .18s,
+                        box-shadow .18s, transform .18s, --hold 0s;
+        }
+
+        .triple-btn svg {
             width: 15px;
             height: 15px;
             flex: none;
@@ -1399,10 +1483,12 @@
             stroke-linejoin: round;
         }
 
-        /* 点亮：不铺红色底块，只把颜色和一圈极淡的辉光烧起来 */
+        /* 点亮：不铺红色底块，只把颜色和一圈极淡的辉光烧起来。
+           用 background-color 而不是 background —— 后者是简写，会把按住时的
+           进度渐变一起清掉，满格那一瞬间就看不到"填满了"。 */
         .triple-btn--on {
             color: #FFE8D6;
-            background: rgba(226, 58, 46, .15);
+            background-color: rgba(226, 58, 46, .15);
             border-color: rgba(255, 85, 70, .48);
             box-shadow: inset 0 0 0 1px rgba(226, 58, 46, .16),
                         0 0 18px rgba(226, 58, 46, .2);
@@ -1418,43 +1504,9 @@
             100% { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(255, 85, 70, 0)); }
         }
 
-        /* 一键三连：主按钮，跟「收下这封信」用同一个渐变，读完信的人认得出它 */
-        .triple-all {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            height: 40px;
-            padding: 0 20px;
-            font-family: inherit;
-            font-size: 13px;
-            letter-spacing: .06em;
-            white-space: nowrap;
-            color: #0B0909;
-            background: linear-gradient(135deg, #FFB271, #FF5546);
-            border: none;
-            border-radius: 999px;
-            cursor: pointer;
-            box-shadow: 0 6px 22px rgba(226, 58, 46, .3);
-            transition: transform .2s, box-shadow .2s, opacity .35s, background .35s;
-        }
-
-        .triple-all:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(226, 58, 46, .42);
-        }
-
-        .triple-all:active { transform: translateY(0) scale(.98); }
-
         /* 完成后整组退到背景里，不再抢画面 */
         #triple.triple--complete .triple-btn {
             opacity: .42;
-            pointer-events: none;
-        }
-
-        #triple.triple--complete .triple-all {
-            color: rgba(255, 244, 230, .62);
-            background: rgba(255, 244, 230, .06);
-            box-shadow: none;
             pointer-events: none;
         }
 
@@ -1513,13 +1565,14 @@
             100% { transform: translate3d(var(--dx, 0px), -26vh, 0) scale(1.05) rotate(var(--rot, 0deg)); opacity: 0; }
         }
 
-        /* 窄屏：三个小按钮只留图标，把宽度让给主按钮。
+        /* 窄屏：三个按钮只留图标，省下来的宽度让给手指。
            阈值放在 560 而不是 430 —— 430 时个别机型（或缩放后的视口）仍然挤。 */
         @media (max-width: 560px) {
-            #triple { gap: 8px; padding: 0 12px; }
-            .triple-btn { padding: 0 13px; gap: 0; }
+            #triple { gap: 9px; padding: 0 12px; }
+            .triple-row { gap: 8px; }
+            .triple-btn { padding: 0 15px; gap: 0; }
             .triple-btn span { display: none; }
-            .triple-all { padding: 0 18px; font-size: 12.5px; }
+            .triple-hint { font-size: 11px; letter-spacing: .12em; }
 
             /* 手机上一封 260 字的信必然要滚，但可以把行距收一点，
                少滚一半。桌面保持舒展。 */
@@ -1560,6 +1613,7 @@
 </audio>
 
 <canvas id="stars"></canvas>
+<div id="city" aria-hidden="true"></div>
 <canvas id="canvas"></canvas>
 <canvas class="canvas"></canvas>
 <div id="vignette"></div>
@@ -1923,6 +1977,9 @@
     // ---------- 3D 透视烟花 ----------
     // 源自 cantelope.org 的 NYE 效果
 
+    // 拖尾只用这四档暖色：辣椒红、暖橙、米白、深红。
+    var TRAIL = ['#FF7A4E', '#FFB271', '#FFF4E6', '#E23A2E'];
+
     function initVars(){
 
         pi=Math.PI;
@@ -2028,6 +2085,10 @@
         t=5+parseInt(Math.random()*sparkCap);
         sparkV=1+Math.random()*2.5;
         type=parseInt(Math.random()*3);
+
+        // 一朵花一个主色。原来是每个火花各自随机取色，炸开就是一把彩色沙子；
+        // 真礼花是一朵一色，最多带一点白芯。
+        var flowerColor = TRAIL[(Math.random()*2)|0];
         switch(type){
             case 0:
                 pic1=parseInt(Math.random()*10);
@@ -2066,6 +2127,12 @@
             }
             spark.radius=25+Math.random()*50;
             spark.alpha=1;
+            // 拖尾颜色统一到暖色，且同朵花里八成以上同一个主色 ——
+            // 原来十个 case 分别配 #f84 / #84f / #8ff，彩虹拖尾配着烘暖的贴图，
+            // 炸开那一瞬间最乱的就是这层线。
+            spark.color = Math.random() < 0.14
+                ? '#FFF4E6'
+                : flowerColor;
             spark.trail=new Array();
             sparks.push(spark);
         }
@@ -2089,7 +2156,10 @@
     function doLogic(){
 
         if(seedTimer<frames){
-            seedTimer=frames+seedInterval*Math.random()*10;
+            // 一朵一朵来。原来平均 0.4 秒一颗，天上永远同时挂着三四朵正在开的，
+            // 看着像屏保；现在 4~7 秒一朵 —— 大部分时间是安静的夜空和城市，
+            // 偶尔一朵开完、落净。稀疏才是礼花，密集只是噪点。
+            seedTimer=frames+240+Math.random()*180;
             spawnSeed();
         }
         for(i=0;i<seeds.length;++i){
@@ -2133,35 +2203,23 @@
                 sparks.splice(i,1);
             }
         }
-        p=Math.atan2(playerX,playerZ);
-        d=Math.sqrt(playerX*playerX+playerZ*playerZ);
-        d+=Math.sin(frames/80)/1.25;
-        t=Math.sin(frames/200)/40;
-        playerX=Math.sin(p+t)*d;
-        playerZ=Math.cos(p+t)*d;
-        yaw=pi+p+t;
+        // 相机不再绕圈。绕圈时整片画面在缓缓横移，看久了像晕船，
+        // 更糟的是粒子文字背后的东西一直在漂，注意力被拽走。
+        // 改成原地极缓的呼吸：位置几乎不动，只留一点"活的"错觉。
+        playerX = Math.sin(frames / 420) * 1.1;
+        playerY = Math.sin(frames / 560) * 0.5;
+        yaw     = pi + Math.sin(frames / 900) * 0.018;
+        pitch   = Math.sin(frames / 700) * 0.01;
     }
 
     function draw(){
 
         ctx.clearRect(0,0,cx*2,cy*2);
 
+        // 原来这里画了一张 3D 透视的橙色方格地面（跨年夜广场）。
+        // 放到生日站里就是一个巨大的 bug：一片亮橙色的地砖占了半屏，
+        // 每帧还要 rasterize 一两千个点。烟花本来就该在天上。
         ctx.fillStyle="#FFA53D";
-        for(i=-100;i<100;i+=gridStepX){
-            for(j=-100;j<100;j+=gridStepZ){
-                x=i;z=j;y=25;
-                point=rasterizePoint(x,y,z);
-                if(point.d!=-1){
-                    size=250/(1+point.d);
-                    d = Math.sqrt(x * x + z * z);
-                    a = 0.5 - Math.pow(d / 100, 6) * 0.5;
-                    if(a>0){
-                        ctx.globalAlpha = a;
-                        ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
-                    }
-                }
-            }
-        }
         ctx.globalAlpha=1;
         for(i=0;i<seeds.length;++i){
             point=rasterizePoint(seeds[i].x,seeds[i].y,seeds[i].z);
@@ -2179,18 +2237,7 @@
                 if(sparks[i].trail.length){
                     point1.x=point.x;
                     point1.y=point.y;
-                    switch(sparks[i].img){
-                        case sparkPics[0]:ctx.strokeStyle="#f84";break;
-                        case sparkPics[1]:ctx.strokeStyle="#84f";break;
-                        case sparkPics[2]:ctx.strokeStyle="#8ff";break;
-                        case sparkPics[3]:ctx.strokeStyle="#FFF4E6";break;
-                        case sparkPics[4]:ctx.strokeStyle="#4f8";break;
-                        case sparkPics[5]:ctx.strokeStyle="#f44";break;
-                        case sparkPics[6]:ctx.strokeStyle="#f84";break;
-                        case sparkPics[7]:ctx.strokeStyle="#84f";break;
-                        case sparkPics[8]:ctx.strokeStyle="#FFF4E6";break;
-                        case sparkPics[9]:ctx.strokeStyle="#44f";break;
-                    }
+                    ctx.strokeStyle=sparks[i].color||TRAIL[0];
                     for(j=sparks[i].trail.length-1;j>=0;--j){
                         point2=rasterizePoint(sparks[i].trail[j].x,sparks[i].trail[j].y,sparks[i].trail[j].z);
                         if(point2.d!=-1){
