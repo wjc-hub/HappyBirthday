@@ -237,33 +237,62 @@
             display: block;
         }
 
-        /* 计数文案：像电影字幕，不像数据看板。
-           等宽字 + 大字距，是为了让 2026-11 · 138.6 万人这行数字
-           读起来有"刻度"的意思，而不是一个统计结果。 */
+        /* 粉丝数：一列阶梯，不是一行字幕。
+           2024 年 1000 人、2025 年 14 万、2026 年 100 万、现在 138 万 ——
+           四行同时挂在画面上，越往下越靠右。观众不需要记住上一行写了什么，
+           一抬眼就能看见这三年翻了多少倍。
+
+           等宽字 + 大字距，是为了让每行数字读起来像"刻度"，
+           而不是一个统计结果。 */
         #opening-label {
             position: absolute;
             left: 0;
             right: 0;
-            bottom: 30vh;
-            text-align: center;
+            bottom: 12vh;
+            text-align: left;
             font-family: var(--mono);
             font-size: 11px;
             line-height: 1;
             letter-spacing: .3em;
-            /* letter-spacing 会在末尾多留一个字距，用 text-indent 抵掉，
-               否则整行看起来往左偏 */
-            text-indent: .3em;
-            color: rgba(255, 236, 204, .85);
-            /* 三层：两层暖光让字"发亮"，一层暗影把背后的光点压下去。
-               没有那层暗影，字落在密集的光点里会被吃掉 —— 满屏星的时候
-               这行数字是最该被读清的东西，它是这段演出的刻度。 */
+            color: rgba(255, 236, 204, .95);
+            /* 三层：贴身的暗晕、然后是两层暖光。
+               暗晕必须写在前面 —— CSS 的多重 text-shadow 是"先写的盖在上面"，
+               写在后面的话，它会压住暖光，字看着发灰。
+               为什么需要它：堆成十一级以后，字是整片泡在星光里的，
+               原来那层"往下 1px 的投影"挡不住从字形中间穿过去的光点，
+               一排数字会缺几个笔画。0 偏移的暗晕跟着笔画走，
+               星点就只能在字四周亮，进不了笔画之间。 */
             text-shadow:
+                0 0 4px rgba(10, 5, 3, .96),
+                0 0 12px rgba(10, 5, 3, .82),
                 0 0 22px rgba(255, 170, 96, .62),
-                0 0 44px rgba(255, 140, 70, .34),
-                0 1px 10px rgba(12, 6, 4, .92);
-            /* 出现这件事不再由父层管，交给每个字（见 .ol-ch）。
-               父层只负责"什么时候整行退场"。 */
+                0 0 44px rgba(255, 140, 70, .34);
             opacity: 1;
+        }
+
+        /* 阶梯的一级。
+           横向的错位由 JS 写成 padding-left: calc(50% - 104px + i*15px)
+           （见 opening.js 的 addRow）：用 50% 而不是定死像素，
+           窗口多宽它都自己算，不用在 resize 里重排；
+           用 padding 而不是 transform，是因为 transform 会让每个字
+           各自进合成层，落字那一帧的位移和这里的错位会打架。
+           行高 1.6 就是"级"与"级"之间那道缝 —— 太密就糊成一段话，
+           但也不能松：11 级加上落款要挤在光核和城市剪影之间那条空当里。
+           采样点是数据里长出来的（现在 11 级，明年还会更多），
+           所以整列的高度是活的：它有多高，这三年就有多长。 */
+        #opening-label .ol-line {
+            white-space: nowrap;
+            line-height: 1.6;
+            opacity: 1;
+            transition: opacity .55s ease;
+        }
+
+        /* 走过的台阶退到半亮。
+           还是读得清 —— 这一列是"走过的路"，擦掉就没有阶梯了；
+           但主角只能是刚落下来的那一级，否则十几行一起亮，
+           眼睛不知道先看谁。0.42 试过，压到那颗光核附近就快看不见了。 */
+        #opening-label .ol-line--dim {
+            opacity: .58;
         }
 
         /* 一个字一个格。宽度先占住，所以字是一个一个亮起来，
@@ -273,45 +302,30 @@
            transform（见 tickChars）。理由是这套"每个字一条 animation +
            各自 delay"的写法，在字多的时候会有一部分字停在中间态：
            计算样式说已经到 100%，画面上却还是暗的。
-           JS 驱动慢不了多少（最多 15 个字，落完就停手），
+           JS 驱动慢不了多少（几十个字，落完就停手），
            但每一帧的状态都是确定的。 */
         #opening-label .ol-ch {
             display: inline-block;
             opacity: 0;
         }
 
-        /* 字落完之后就留在那里，不再自己淡出。
-           
-           原来这一行有个 3.9 秒的淡出动画：字刚落齐，整行就开始退。
-           但采样点是按真实日期排的，2024 年那九个月两行之间隔着十几秒 ——
-           于是观众看到的是"写完一行、擦掉、空着、再写一行"。
-           刻度不该擦掉。它就该一直挂在那儿，直到下一个刻度把它顶掉。 */
-
-        /* 换句：旧的一句先退 0.18 秒，新的再落位。
-           直接清空重建是"啪"一下闪掉，像电视换台；
-           有了这 0.18 秒，读起来才是"这一行翻篇了"。 */
-        #opening-label.opening-label--swap {
-            animation: openingLabelOut .18s ease forwards;
-        }
-
-        /* 最后一句是「落款」，不是「刻度」。
-           前面几行是 mono 的数字（2026-11 · 138.6 万人），读的是量；
-           这一句是整段演出的收束，换成宋体、字距收紧、字号放大，
-           读的是重量。
-           
-           为什么必须换字体：mono 排中文每个字都占一个等宽格，
-           「一百三十八万人，今晚都在」排出来字与字之间是散的，
-           像表格；宋体连起来才有"写完一句话"的停顿感。 */
-        #opening-label.opening-label--final {
+        /* 最后一格是「落款」，不是「刻度」。
+           前面几行是 mono 的数字（2026-11 · 138.7 万人），读的是量；
+           这一句是整段演出的收束，换回宋体、字距收紧、字号放大，
+           读的是重量。它不参与阶梯的错位，居中压在这列数字下面。 */
+        #opening-label .ol-line--final {
+            margin-top: 14px;
+            text-align: center;
             font-family: var(--serif);
             font-size: 18px;
             letter-spacing: .1em;
-            text-indent: .1em;
+            line-height: 1.4;
             color: rgba(255, 244, 218, .97);
             text-shadow:
+                0 0 4px rgba(10, 5, 3, .95),
+                0 0 12px rgba(10, 5, 3, .78),
                 0 0 26px rgba(255, 186, 112, .70),
-                0 0 60px rgba(255, 148, 76, .40),
-                0 2px 14px rgba(12, 6, 4, .95);
+                0 0 60px rgba(255, 148, 76, .40);
         }
 
         /* 跳过提示。
@@ -350,22 +364,23 @@
         /* 字怎么落位，见 js/opening.js 的 tickChars：
            从下方 12px 浮上来、60% 处全亮。参数在那边，样式这边只管排布。 */
 
-        /* 换句时旧的一行退场。只干这一件事 —— 出现和停留都不归它管。 */
-        @keyframes openingLabelOut {
-            from { opacity: 1; }
-            to   { opacity: 0; }
-        }
-
         /* 注意：字距始终不动。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
 
+        /* 十几级压在画面下三分之一。矮屏上整列会顶到光核附近，
+           所以台阶之间的缝收一点、整列再往下挪一点。 */
         @media (max-height: 620px) {
-            #opening-label { bottom: 26vh; font-size: 10px; }
-            #opening-label.opening-label--final { font-size: 15px; }
+            #opening-label { bottom: 19vh; font-size: 10px; }
+            #opening-label .ol-line { line-height: 1.5; }
+            #opening-label .ol-line--final { font-size: 15px; margin-top: 10px; }
             #opening-hint { right: 16px; bottom: 18px; }
         }
 
         @media (max-width: 640px) {
-            #opening-label.opening-label--final { font-size: 16px; }
+            /* 手机上十一级得压一压：字号、行距、到屏幕底的距离都要让出地方，
+               否则落款会压到城市剪影上。 */
+            #opening-label { bottom: 24vh; font-size: 10px; }
+            #opening-label .ol-line { line-height: 1.55; }
+            #opening-label .ol-line--final { font-size: 15px; margin-top: 10px; }
         }
 
         /* ---------- 画布 ---------- */

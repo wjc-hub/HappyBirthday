@@ -26,9 +26,9 @@
     0.0s  一片黑，一颗光点被点亮、开始呼吸   ← 一个人
     2.6s  光点散成几颗                       ← 有人来了
     4.0s  光点开始从城市底部升起、留在天上   ← 灯一盏盏亮
-    22.0s  按真实粉丝曲线长到满屏
+    21.0s  按真实粉丝曲线长到满屏，阶梯摞到最后一级
     26.0s  所有光一起向上涌
-    29.5s  淡出，把画面交给粒子字
+    31.8s  淡出，把画面交给粒子字
 
   光点全部从画面下沿升起（那是城市的位置），不是凭空出现在天上。
   "从地上长出来"和"天上本来就有"是两种完全不同的意思。
@@ -40,13 +40,18 @@
   像人群一起吸一口气。收拢完成后光核再跳两下，然后才熄灭 ——
   它得是活的，交棒那一下才像"睁眼"。
 
-  那一行文案也不是整行淡入的：一个字一个 <span>，各自从下方落位
-  （见 paintChars）。整行淡入读起来是"字幕被切上来"，逐字落位才像
+  那些数字也不是整行淡入的：一个字一个 <span>，各自从下方落位
+  （见 addRow）。整行淡入读起来是"字幕被切上来"，逐字落位才像
   "有人在黑暗里把这句念出来"。
 
-  而且落完之后**不擦掉**：这一行是刻度，它一直挂在画面上，
-  直到下一个刻度把它顶掉。中途擦掉的话，两行之间就是空白 ——
-  观众看到的是"屏幕在闪"，不是"这条线在往前走"（见 paint）。
+  而且一行落完不擦、新的一行接在下面 —— 十几行叠成一列**阶梯**：
+  越往后越靠右。观众不用记住刚才写了什么，一抬眼就看见 1000 人、
+  14 万人、40 万人、100 万人、138 万人同时挂在那儿，落差是被
+  **堆**出来的，不是被念出来的。换句（擦掉旧行再写新的）读起来
+  是"一句台词被顶替"，而这三年本来就不是一句台词，是一条路
+  （见 addRow / layoutStairs）。
+
+  走过的台阶会退到六成亮，但不是消失：整列擦掉的话，就没有阶梯了。
 
   跳过
   ----
@@ -73,18 +78,16 @@ var Opening = (function () {
       stars = [],          // 已经停在天上的光点
       risers = [],         // 正在从城市升起的光点
       spriteCache = {},
-      markerIdx = -1,
       doneFn = null,
       finished = false,
       lastFrame = 0,
       progress = 0,
       skipTimer = null,
       hintTimer = null,
-      swapTimer = null,    // 换句时那句"旧行先退"的计时
-      charStart = 0,       // 当前这一句开始落位的时刻
-      charStagger = 62,    // 字与字之间隔多久（数字行 62ms，落款 118ms）
-      charDur = 950,       // 单个字落完要多久
-      charLive = false,    // 还有字没落完
+      rows = [],           // 已经挂上去的每一行（阶梯的每一级）
+      shownMark = -1,      // 已经写到第几个采样点
+      finalShown = false,  // 落款写过没有
+      charLive = false,    // 还有字在落
       lastTap = 0,         // 上一次"想跳过"的点击时刻
       skipping = false,
       skipAt = 0,
@@ -94,11 +97,14 @@ var Opening = (function () {
   // ---------- 时间轴（毫秒）----------
   // 改这里就能改变整段开场的节奏。总长 = T_END。
 
+  // 2026-11-13：最后一级（现在的人数）原来只挂两秒就被收拢压住，
+  // 而"看全这一列"正是这段戏要给人的东西 —— 所以生长段提前一秒收尾，
+  // 收拢往后推两秒：整列完整地停 5 秒，再交给光。
   var T_SEED  = 2600,     // 一颗 → 一小簇
-      T_GROW  = 22000,    // 生长段结束（此后不再新增星）
-      T_LIFT  = 24000,    // 收拢开始
-      T_LIFT_END = 28200, // 收拢到最紧
-      T_END   = 29800;    // 淡出结束、交棒
+      T_GROW  = 21000,    // 生长段结束（此后不再新增星、不再加级）
+      T_LIFT  = 26000,    // 收拢开始
+      T_LIFT_END = 30200, // 收拢到最紧
+      T_END   = 31800;    // 淡出结束、交棒
 
   // 生长曲线终点：满屏大约能放多少颗。再多就糊成一片噪声，看不出"点"——
   // 1300 颗时整屏像一场雪，人眼只会读成"花的"，读不出"多"。
@@ -138,17 +144,24 @@ var Opening = (function () {
     return SERIES;
   }
 
-  // 演出进度 p(0~1) 映射到真实日期，再取那个日期上的人数。
+  // 演出进度 p(0~1) 落到的那个真实日期。
   //
   // ⚠️ 这一条是整段开场的节奏来源，不能均匀分给采样点。
   // 均匀分的话，2024 年那 9 个月（1000 → 14 万）和 2026 年那 5 个月
   // （83 万 → 100 万）各占一样长的时间 —— 但真实世界里，前者是"没人看"的
   // 九个月，后者是"每个月涨三万"。等得久，才看得见"她熬了多久"。
-  function followersAt(p) {
+  function dateAt(p) {
     var s = series(),
         from = s[0].t,
-        to = s[s.length - 1].t,
-        t = from + (to - from) * Math.max(0, Math.min(1, p)),
+        to = s[s.length - 1].t;
+
+    return from + (to - from) * Math.max(0, Math.min(1, p));
+  }
+
+  // 那个日期上大致有多少人（采样点之间线性插值）。
+  function followersAt(p) {
+    var s = series(),
+        t = dateAt(p),
         i = 0;
 
     while (i < s.length - 2 && s[i + 1].t < t) i++;
@@ -160,22 +173,22 @@ var Opening = (function () {
     return a.f + (b.f - a.f) * Math.max(0, Math.min(1, k));
   }
 
-  // p 最接近哪个采样点（用来决定屏幕上显示哪一行的数字）
-  function markAt(p) {
+  // 已经走到第几个采样点（阶梯要添到第几级）。
+  //
+  // 用"走到"而不是"离谁近"：这是逐级往摞的前提下必须先改的一件事。
+  // 最近邻是按"前后各一半"来算每一级的上台时间的 —— 2024-04 到 2025-01
+  // 隔着九个月，那一级就只挂一秒多，字都没落齐就被顶上去。
+  // 走到就是走到：光点满到一千人，才写"1000 人"。
+  // 光点的呼吸/全屏亮一下也走这条（见 syncPulse），
+  // 于是"数字出现"和"光满上来"是同一瞬间，不是两件事。
+  function reachedIdx(p) {
     var s = series(),
-        from = s[0].t,
-        to = s[s.length - 1].t,
-        t = from + (to - from) * Math.max(0, Math.min(1, p)),
-        best = 0,
-        bestD = Infinity,
-        i, d;
+        t = dateAt(p),
+        i = 0;
 
-    for (i = 0; i < s.length; i++) {
-      d = Math.abs(s[i].t - t);
-      if (d < bestD) { bestD = d; best = i; }
-    }
+    while (i < s.length - 1 && s[i + 1].t <= t) i++;
 
-    return best;
+    return i;
   }
 
   // 粉丝数 → 光点数。
@@ -236,13 +249,6 @@ var Opening = (function () {
   function finalLine() {
     var s = series();
     return cnWan(s[s.length - 1].f) + '人，今晚都在';
-  }
-
-  function markText(p) {
-    var s = series(),
-        pt = s[markAt(p)];
-
-    return pt.date.slice(0, 7) + ' · ' + human(pt.f);
   }
 
   // ---------- 绘制资源 ----------
@@ -405,7 +411,7 @@ var Opening = (function () {
   function syncPulse(t, grow) {
     if (t < T_SEED) return;
 
-    var idx = markAt(grow);
+    var idx = reachedIdx(grow);
     if (idx === pulseIdx) return;
 
     pulseIdx = idx;
@@ -665,24 +671,80 @@ var Opening = (function () {
 
   // ---------- 文案 ----------
 
-  // 把一句话拆成一个个字，让它们各自出现。
+  // 阶梯的一级。
   //
-  // 整行一起淡入，读起来是"一张字幕被切上来"；一个字一个字地落位，
-  // 才像有人在黑暗里把这句话念出来 —— 而这三十秒本来就只有这一行字，
-  // 它必须自己承担整段开场的语气。
+  // 为什么是"一行一行往上摞"，不是"一句一句换"：
+  // 换句的时候画面上永远只有一行，观众得靠记忆去比 1000 和 138 万人；
+  // 摞成阶梯以后，走过的每一级都还在，落差是自己撞进眼睛里的 ——
+  // 而且它跟画面上那些一颗一颗升起来的星光说的是同一件事：
+  // 这几年，每一年都比上一年多来了很多人。
+  //
+  // 排布（见 index.html 的 .ol-line）：每一级比上一级往右挪一步，
+  // 整列的高度在第一级落下时就占满，后面每加一级只往下填一格 ——
+  // 已经落好的字一动不动，新的那一级落在上一级的下面那一格。
   //
   // 坑：空格不能用普通空格。span 里的空格在 inline-block 下会被折叠，
   // 一行「2026-11 · 138.6 万人」会挤成「2026-11·138.6万人」。
   // 换行同理 —— 用 nbsp 保住。
   //
-  // 落位的时间戳记在这里，逐帧由 tickChars 推。不用 CSS animation：
+  // 落位的时间戳记在每一行自己身上，逐帧由 tickChars 推。不用 CSS animation：
   // 「每个字一条 animation + 各自 delay」在字多的时候会有几个字停在
-  // 中间态（计算样式已经是终值，画面上还是暗的），而且 15 条动画
-  // 各自占一个合成层。JS 写 style 最多也就十几个字，落完就停。
-  function paintChars(text, stagger, dur) {
-    var i, ch, sp;
+  // 中间态（计算样式已经是终值，画面上还是暗的），而且几十条动画
+  // 各自占一个合成层。JS 写 style 最多几十个字，落完就停。
+  var STAIR = 13;          // 一级往右挪多少像素（宽屏）
 
-    label.textContent = '';
+  // 窄屏上步子要收一点：11 级的错位加上一行字，在 390 宽的手机屏上
+  // 就是一条从左边缘斜到右边缘的线，看着像排版溢出。
+  function stairStep() {
+    return Math.max(7, Math.min(STAIR, W * 0.030));
+  }
+
+  // 整列靠哪条线起排。
+  //
+  // 错位是一路往右走的，走到最后一级已经偏出去半列了，所以整列先把
+  // 总错位的一半让出来 —— 视觉重心才落在屏幕中线上。
+  // 采样点是数据里长出来的（现在 11 个，明年更多），不写死。
+  // 104 是"一行里程碑大约有多宽的一半"，再把结果按屏宽的 30% 兜一次底。
+  function stairBase() {
+    var half = 104 + (series().length - 1) * stairStep() / 2;
+
+    return Math.min(half, W * 0.30);
+  }
+
+  // 重排整列。只在加了一级、或者窗口变宽变窄时跑 —— 十几行，很轻。
+  function layoutStairs() {
+    var i, el, rowH;
+
+    for (i = 0; i < rows.length; i++) {
+      el = rows[i].el;
+
+      if (el.classList.contains('ol-line--final')) continue;
+
+      el.style.paddingLeft = 'calc(50% - ' + stairBase() + 'px + ' +
+        (i * stairStep()) + 'px)';
+    }
+
+    // 整列的高度一次占满。
+    //
+    // 不占的话：每加一级，前面所有行都被顶上去一行。2025 年那一段采样点
+    // 密得两秒一级，整列就一直在往上爬 —— 正在读的那一行会自己跑掉。
+    // 占住之后每一级只往下填一格，已经落好的字一动不动，
+    // 底下的空白是"还没走到的那几级"。
+    //
+    // 44 是落款那一格要的高度（14 外边距 + 18px 宋体的行高），
+    // 到了最后一句才真的用上；估小一点也无所谓，最多整列上移两三个像素。
+    rowH = rows.length ? rows[0].el.getBoundingClientRect().height : 0;
+
+    if (rowH) {
+      label.style.minHeight = (series().length * rowH + 44) + 'px';
+    }
+  }
+
+  function addRow(text, isFinal) {
+    var row = document.createElement('div'),
+        i, ch, sp;
+
+    row.className = 'ol-line' + (isFinal ? ' ol-line--final' : '');
 
     for (i = 0; i < text.length; i++) {
       ch = text.charAt(i);
@@ -690,13 +752,35 @@ var Opening = (function () {
       sp = document.createElement('span');
       sp.className = 'ol-ch';
       sp.textContent = (ch === ' ' || ch === '\u3000') ? '\u00a0' : ch;
-      label.appendChild(sp);
+      row.appendChild(sp);
     }
 
-    charStagger = stagger;
-    charDur = dur || 950;
-    charStart = performance.now();
+    label.appendChild(row);
+
+    rows.push({
+      el: row,
+      chars: row.children,
+      start: performance.now(),
+      // 落款那十一个字比数字行重，字与字之间留得久一点：
+      // 62ms 是"念数字"的节奏，118ms 是"说一句话"的节奏。
+      // 单字时长也一起放慢（0.95s → 1.15s），否则字距一拉开、
+      // 每个字自己却落得飞快，读起来像在催。
+      stagger: isFinal ? 118 : 62,
+      dur: isFinal ? 1150 : 950,
+      live: true
+    });
+
     charLive = true;
+
+    // 先排再显：排布放这里而不是 CSS，是因为它得知道"一步多宽"和
+    // "一共几级"，这两个都只有 JS 那边有。
+    layoutStairs();
+
+    // 走过的台阶退到半亮：还读得清，但主角是新落下来的那一级。
+    // 不是淡出 —— 擦掉就没有阶梯了。
+    for (i = 0; i < rows.length - 1; i++) {
+      rows[i].el.classList.add('ol-line--dim');
+    }
   }
 
   // 一个字：从下方 12px 浮上来，60% 的地方就全亮。
@@ -709,109 +793,94 @@ var Opening = (function () {
     if (!charLive || !label) return;
 
     var now = performance.now(),
-        kids = label.children,
-        n = kids.length,
-        settled = 0,
-        i, p, e, el;
+        live = 0,
+        r, rec, kids, n, i, p, e, settled;
 
-    for (i = 0; i < n; i++) {
-      el = kids[i];
+    for (r = 0; r < rows.length; r++) {
+      rec = rows[r];
+      if (!rec.live) continue;
 
-      p = (now - charStart - i * charStagger) / charDur;
+      kids = rec.chars;
+      n = kids.length;
+      settled = 0;
 
-      if (p >= 1) { settled++; continue; }
-      if (p <= 0) continue;          // 还没轮到，保持 CSS 的 opacity: 0
-
-      e = 1 - Math.pow(1 - p, 3);    // easeOutCubic
-
-      el.style.opacity = p >= 0.6 ? '1' : e.toFixed(3);
-      el.style.transform = 'translateY(' + ((1 - e) * 12).toFixed(2) + 'px)';
-    }
-
-    if (settled === n) {
-      // 落齐了：把终态写死，然后停手，不再每帧碰 DOM。
       for (i = 0; i < n; i++) {
-        kids[i].style.opacity = '1';
-        kids[i].style.transform = 'none';
+        p = (now - rec.start - i * rec.stagger) / rec.dur;
+
+        if (p >= 1) { settled++; continue; }
+        if (p <= 0) continue;          // 还没轮到，保持 CSS 的 opacity: 0
+
+        e = 1 - Math.pow(1 - p, 3);    // easeOutCubic
+
+        kids[i].style.opacity = p >= 0.6 ? '1' : e.toFixed(3);
+        kids[i].style.transform = 'translateY(' + ((1 - e) * 12).toFixed(2) + 'px)';
       }
-      charLive = false;
+
+      if (settled === n) {
+        // 这一行落齐了：把终态写死，从此这一行不再每帧碰 DOM。
+        for (i = 0; i < n; i++) {
+          kids[i].style.opacity = '1';
+          kids[i].style.transform = 'none';
+        }
+        rec.live = false;
+      } else {
+        live++;
+      }
     }
+
+    charLive = live > 0;
   }
 
   function updateLabel(t, grow) {
     if (!label) return;
 
-    var idx;
+    // 开场那两秒半什么都不写。一颗光点在呼吸，不需要解释。
+    if (t < T_SEED) return;
 
-    if (t < T_SEED) {
-      // 开场那两秒半什么都不写。一颗光点在呼吸，不需要解释。
-      // 用 -1 而不是 0：等 T_SEED 过去、真的切到第一条时，
-      // idx 变了才会重播一次淡入 —— 否则动画早在第一颗星亮起时就跑完了，
-      // 观众看到的是一条从没出现过的文案。
-      idx = -1;
-    } else {
-      idx = markAt(grow);
+    var n = series().length,
+        // 落款在"开始收拢"时才出现，不是人数涨满就出现：
+        // 按 grow 判断的话，2026-11 那一级只挂零点几秒就被落款压住了 ——
+        // 而它恰恰是"现在"。
+        idx = (t >= T_LIFT + 300) ? n : reachedIdx(grow);
 
-      // 最后一句话在"开始收拢"时才出现，不是人数涨满就出现。
-      // 按 grow 判断的话，2026-11 那条采样点只显示零点几秒就被盖掉了 ——
-      // 而它恰恰是"现在".
-      if (t >= T_LIFT + 300) idx = series().length;
+    // 一级一级往上补。idx 一次跳两级（掉帧、从后台切回来）就两级都补上：
+    // 阶梯中间缺一格比慢一格难看，而且缺的那格永远补不回来了。
+    while (shownMark < Math.min(idx, n - 1)) {
+      shownMark++;
+      showMark(shownMark);
     }
 
-    if (idx === markerIdx) return;
-
-    markerIdx = idx;
-
-    if (idx < 0) {
-      label.textContent = '';
-      label.classList.remove('opening-label--final', 'opening-label--swap');
-      return;
-    }
-
-    var isFinal = idx >= series().length,
-        text = isFinal ? finalLine() : markText(grow);
-
-    paint(text, isFinal);
+    if (idx >= n) showFinal();
   }
 
-  // 换一句。
-  //
-  // 字落完之后**不擦掉**：这个刻度就一直挂在画面上，直到下一个刻度把它顶掉。
-  // 采样点是按真实日期排的，2024 年那九个月两行之间隔着十几秒 ——
-  // 原来"字落齐 → 整行淡出 → 空着 → 再写一行"，读起来是屏幕在闪，
-  // 而不是"这条线一直在往前走"。
-  //
-  // 换的那一下也不是直接清空重建：旧行先退 0.18 秒，新的再落位。
-  // 直接换是"啪"一下闪掉，像电视换台；有了这 0.18 秒才是"翻篇"。
-  function paint(text, isFinal) {
-    // 落款那十一个字比数字行重，所以字与字之间留得久一点：
-    // 62ms 是"念数字"的节奏，118ms 是"说一句话"的节奏。
-    // 单字时长也一起放慢一点（0.95s → 1.15s），否则字距一拉开、
-    // 每个字自己却落得飞快，读起来像在催。
-    var stagger = isFinal ? 118 : 62,
-        dur = isFinal ? 1150 : 950;
+  function showMark(i) {
+    addRow(markLabel(i), false);
+  }
 
-    function build() {
-      // 落款那一句换字体、放大（见 index.html 的 --final）。
-      // 先换样式再排字：字体一变，每个字的宽度就变了，
-      // 晚加会把已经落好的字挤着挪一下。
-      label.classList.remove('opening-label--final', 'opening-label--swap');
-      if (isFinal) label.classList.add('opening-label--final');
+  // 一级上写什么。
+  //
+  // 平时只写「2025-12」—— 这一列读的是趋势，月份够用。
+  // 但同一个月的两条（2025-12-11 的 60 万、2025-12-21 的 64 万）不能都写成
+  // 「2025-12」：一列里出现两个一模一样的日期，看起来像数据出了错。
+  // 撞月就退到完整日期 —— 多写五个字，换来的是"那十天涨了四万"这个事实。
+  function markLabel(i) {
+    var s = series(),
+        ym = s[i].date.slice(0, 7),
+        dup = false,
+        k;
 
-      paintChars(text, stagger, dur);
+    for (k = 0; k < s.length; k++) {
+      if (k !== i && s[k].date.slice(0, 7) === ym) { dup = true; break; }
     }
 
-    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+    return (dup ? s[i].date.slice(0, 10) : ym) + ' · ' + human(s[i].f);
+  }
 
-    if (label.firstChild) {
-      label.classList.add('opening-label--swap');
-      swapTimer = setTimeout(function () {
-        swapTimer = null;
-        build();
-      }, 180);
-    } else {
-      build();
-    }
+  function showFinal() {
+    if (finalShown) return;
+    finalShown = true;
+
+    addRow(finalLine(), true);
   }
 
   // ---------- 生命周期 ----------
@@ -826,7 +895,6 @@ var Opening = (function () {
 
     if (skipTimer) { clearTimeout(skipTimer); skipTimer = null; }
     if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
-    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
     document.removeEventListener('click', onDocClick);
     window.removeEventListener('resize', onResize);
     hideHint();
@@ -887,13 +955,14 @@ var Opening = (function () {
     lastFrame = 0;
     stars.length = 0;
     risers.length = 0;
-    markerIdx = -1;
     skipping = false;
     charLive = false;
-    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+    rows.length = 0;
+    shownMark = -1;
+    finalShown = false;
     if (label) {
       label.textContent = '';
-      label.classList.remove('opening-label--final', 'opening-label--swap');
+      label.style.minHeight = '';
     }
     skipAt = 0;
     lastTap = 0;
@@ -989,7 +1058,11 @@ var Opening = (function () {
 
   function onResize() {
     if (!running) return;
+
     resize();
+
+    // 宽度变了，"一级多宽"和"整列从哪儿起"都跟着变（见 stairStep）。
+    layoutStairs();
   }
 
   return {
@@ -1003,7 +1076,8 @@ var Opening = (function () {
         stars: stars.length,
         risers: risers.length,
         progress: Math.round(progress * 100) / 100,
-        marker: markerIdx
+        mark: shownMark,
+        rows: rows.length
       };
     }
   };

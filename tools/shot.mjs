@@ -101,6 +101,14 @@ try {
   await send('Page.enable');
   await send('Runtime.enable');
 
+  // 视口必须显式钉死。--window-size 只是窗口，不等于页面视口 ——
+  // 实测报回过"窗口 1080、innerWidth 1418"，截图被缩过一道，
+  // 于是 --clip 的坐标整体对不上，曾经顺着这个假象改了两轮样式。
+  // 这里覆盖成 1:1，之后 clip 的坐标系和截图逐像素一致。
+  await send('Emulation.setDeviceMetricsOverride', {
+    width: vw, height: vh, deviceScaleFactor: 1, mobile: false,
+  });
+
   // 关掉 HTTP 缓存。
   //
   // 这个工具复用同一个用户目录（加快启动），代价是 js/config.js 这类
