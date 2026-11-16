@@ -53,6 +53,10 @@ const chrome = spawn(CHROME, [
   '--disable-extensions',
   `--remote-debugging-port=${PORT}`,
   `--window-size=${vw},${vh}`,
+  // 系统显示缩放不是 100% 时，headless 的截图会按系统 DPI 存盘
+  // （实测 1440x900 的视口存成 1080x675），字号看着比真机小四分之一。
+  // 钉死 1 之后截图和视口逐像素一致，量出来的字高才可信。
+  '--force-device-scale-factor=1',
   '--no-first-run',
   '--user-data-dir=' + process.env.TEMP + '/hb-shot-profile',
   'about:blank',

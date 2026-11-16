@@ -237,95 +237,274 @@
             display: block;
         }
 
-        /* 粉丝数：一列阶梯，不是一行字幕。
-           2024 年 1000 人、2025 年 14 万、2026 年 100 万、现在 138 万 ——
-           四行同时挂在画面上，越往下越靠右。观众不需要记住上一行写了什么，
-           一抬眼就能看见这三年翻了多少倍。
+        /* 粉丝数：一列往上摞的台阶。
 
-           等宽字 + 大字距，是为了让每行数字读起来像"刻度"，
-           而不是一个统计结果。 */
+           上一版是一列 11px 等宽小字：结构对（同时看见所有），但观感像
+           一份调试日志 —— 字小、没有层级、悬在星空中间，跟画面没有关系。
+
+           这一版把「涨」这件事拆进排版：
+             · 字号跟着人数一起长（--fs 由 JS 按站位算，见 opening.js 的 fontAt）
+             · 日期小、人数大：一个读刻度，一个读主角
+             · 每一级底下压一条细线，从左侧导轨伸到文字右端，越往下越长 ——
+               十一根横线叠起来就是台阶的剪影
+             · 左侧一根竖直导轨 + 一个往下走的亮点：「此刻」在哪一级
+
+           整列靠左，不居中：画面中间是光核，文字挤在正中会跟它打架；
+           靠左之后这半屏是"账本"，另外半屏留给光，构图才有主次。 */
         #opening-label {
+            position: absolute;
+            left: 7vw;
+            right: auto;
+            top: 26vh;              /* 落笔位置由 layoutStairs 覆写（按屏幕高度算） */
+            text-align: left;
+            font-family: var(--mono);
+            font-size: 16px;
+            line-height: 1;
+            color: rgba(255, 240, 216, .96);
+        }
+
+        /* 不再给这一列垫暗底。
+           试过一层无边缘的径向渐变托底，截出来是一块看得见的脏影 ——
+           星空是这幅画的主体，为了字去压它，得不偿失。改成把字本身做厚：
+           近白 + 三层暗晕（见 .ol-num 的 text-shadow）。 */
+
+        /* 一级。
+           --fs 是这一级的字号：第一级最小，最后一级大约大六成。
+           字号自己在长，是这一列最直接的"涨" —— 比任何数字都先被看见。 */
+        #opening-label .ol-line {
+            position: relative;
+            width: max-content;
+            white-space: nowrap;
+            font-size: var(--fs, 16px);
+            line-height: 1.5;
+        }
+
+        #opening-label .ol-body {
+            display: flex;
+            align-items: baseline;
+            opacity: 1;
+            transition: opacity .6s ease;
+            /* 不用 forwards/both：动画一填满，opacity 就被钉死成 1，
+               后面的"旧行退暗"再也改不动它。让它自己收回基态即可。 */
+            animation: olRowIn .78s cubic-bezier(.16, .84, .34, 1);
+        }
+
+
+        /* 日期：刻度。小、暗、字距拉开 —— 读的是"什么时候"，不是"多少人"。
+
+           字号**固定**，不跟人数一起放大，两个原因：
+             1. 138 万那一行若连日期也涨到 16px，它就抢了数字的戏；
+             2. 日期列是靠 ch 定宽的（见 opening.js 的 dateWidth），
+                字号一变 ch 就变，右边那些数字立刻排成一条参差的斜线。
+           固定之后：左边一条笔直的日期列，右边一串逐级下沉的数字。 */
+        #opening-label .ol-date {
+            flex: 0 0 auto;
+            font-size: clamp(11px, .92vw, 13px);
+            letter-spacing: .13em;
+            color: rgba(255, 210, 162, .62);
+            text-shadow:
+                0 0 5px rgba(10, 5, 3, .96),
+                0 1px 10px rgba(10, 5, 3, .92);
+        }
+
+        /* 人数：主角。
+           等宽 + 表格数字（tabular-nums）：滚动时每一位都不会左右跳。
+           min-width + 右对齐：位数变多（千 → 万）的时候，后面的「万人」
+           不会跟着跑，字一直在原地长。 */
+        #opening-label .ol-num {
+            margin-left: .38em;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.01em;
+            font-weight: 600;
+            color: #fff8ec;
+            text-shadow:
+                0 0 3px rgba(10, 5, 3, .96),
+                0 0 12px rgba(10, 5, 3, .70),
+                0 0 24px rgba(255, 182, 110, .44),
+                0 0 56px rgba(255, 150, 80, .22);
+        }
+
+        #opening-label .ol-unit {
+            margin-left: .16em;
+            font-size: clamp(10px, calc(var(--fs) * .50), 16px);
+            letter-spacing: .06em;
+            color: rgba(255, 226, 186, .76);
+            text-shadow: 0 0 9px rgba(10, 5, 3, .92);
+        }
+
+        /* 左侧导轨。每一级画自己那一段，叠起来是一条连续的竖线 ——
+           它把十一行字串成"一个东西"，也是那个亮点走过的轨道。 */
+        #opening-label .ol-line::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: linear-gradient(180deg,
+                rgba(255, 220, 174, .46),
+                rgba(255, 206, 152, .28));
+        }
+
+        /* 这一级的那道横杠。线往右淡出去，整列才不会在右边切出一条硬边。
+           线是"划"出来的（scaleX 0→1），不是"淡"出来的 ——
+           划出来才像有人在账本上写下这一行。 */
+        #opening-label .ol-line::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: auto;
+            /* 长度由 JS 量出来（数字的起点）：见 layoutStairs 的 --beam */
+            width: var(--beam, 100%);
+            bottom: .22em;
+            height: 2px;
+            border-radius: 2px;
+            opacity: .95;
+            transform-origin: 0 50%;
+            background: linear-gradient(90deg,
+                rgba(255, 196, 132, .10),
+                rgba(255, 200, 140, .26) 34%,
+                rgba(255, 216, 164, .62) 82%,
+                rgba(255, 232, 194, .92));
+            /* 梁要发一点光，不然在满屏星点里就是一条灰线。
+               用 box-shadow 而不是再叠一层渐变：一层就够，也不会糊成一片。 */
+            box-shadow: 0 0 12px rgba(255, 176, 96, .30);
+            animation: olTread .9s cubic-bezier(.22, .82, .3, 1) .08s both;
+        }
+
+        /* 踏步的竖面。1px，从踏板末端垂到下一级踏板 —— 十一条踏板
+           靠它连起来才是一个楼梯的剖面，不然只是十一条横线。 */
+        #opening-label .ol-riser {
+            position: absolute;
+            width: 1px;
+            height: 0;
+            transform: scaleY(0);
+            transform-origin: 50% 0;
+            background: linear-gradient(180deg,
+                rgba(255, 226, 178, .50),
+                rgba(255, 200, 140, .18));
+            transition: transform .46s cubic-bezier(.3, .8, .3, 1);
+        }
+
+        #opening-label .ol-riser--on { transform: scaleY(1); }
+
+        /* 走过的台阶：只有**字**退暗，踏板和竖面几乎不退。
+           楼梯是一个结构，结构不能跟着一起淡 —— 一淡就只剩几行孤零零的
+           数字，看不出它们站在什么地方。所以：字到七成，线到八成。 */
+        #opening-label .ol-line--dim .ol-body {
+            opacity: .70;
+        }
+
+        #opening-label .ol-line--dim::after {
+            opacity: .80;
+        }
+
+        #opening-label .ol-line--dim .ol-riser {
+            opacity: .72;
+        }
+
+        /* 最新一级在呼吸。整屏只有这一处在动（别处是光在动，不是字）——
+           所以眼睛知道该看哪儿。 */
+        #opening-label .ol-line--now .ol-num {
+            animation: olNumGlow 3.4s ease-in-out infinite alternate;
+        }
+
+        /* 「此刻」的针。每落一级，它往下滑一格（top 由 placeMarker 写）。
+
+           形状是**一小段竖线**，不是一个圆点：圆点在五个像素上分不清是
+           指针还是一颗星光；一小段竖线骑在导轨上，一看就是"刻度到这儿了"。
+           会移动的针才是针，不动的只是装饰。 */
+        #opening-label .ol-marker {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 3px;
+            height: 15px;
+            margin: -7.5px 0 0 -1px;
+            border-radius: 2px;
+            background: linear-gradient(180deg,
+                rgba(255, 240, 210, .98),
+                rgba(255, 198, 138, .92));
+            box-shadow:
+                0 0 10px 2px rgba(255, 190, 120, .70),
+                0 0 26px 8px rgba(255, 150, 80, .26);
+            opacity: 0;
+            transition: top .62s cubic-bezier(.22, .82, .3, 1), opacity .45s ease;
+        }
+
+        /* 落款：一句话，不是一个数。
+           换回宋体 —— mono 排中文每个字都占一个等宽格，读起来是散的；
+           宋体连起来才有"写完一句话"的停顿。 */
+        #opening-label .ol-line--final {
+            margin-top: 1.05em;
+            font-family: var(--serif);
+            letter-spacing: .07em;
+            line-height: 1.4;
+            color: rgba(255, 246, 224, .98);
+        }
+
+        /* 落款不画横杠（它不是台阶），只在上方压一条更亮的分隔线，
+           把十一级和这一句话分开。 */
+        #opening-label .ol-line--final::before {
+            content: '';
             position: absolute;
             left: 0;
             right: 0;
-            bottom: 12vh;
-            text-align: left;
-            font-family: var(--mono);
-            font-size: 11px;
-            line-height: 1;
-            letter-spacing: .3em;
-            color: rgba(255, 236, 204, .95);
-            /* 三层：贴身的暗晕、然后是两层暖光。
-               暗晕必须写在前面 —— CSS 的多重 text-shadow 是"先写的盖在上面"，
-               写在后面的话，它会压住暖光，字看着发灰。
-               为什么需要它：堆成十一级以后，字是整片泡在星光里的，
-               原来那层"往下 1px 的投影"挡不住从字形中间穿过去的光点，
-               一排数字会缺几个笔画。0 偏移的暗晕跟着笔画走，
-               星点就只能在字四周亮，进不了笔画之间。 */
+            top: .12em;
+            height: 1px;
+            background: linear-gradient(90deg,
+                rgba(255, 214, 160, .44),
+                rgba(255, 200, 144, .16) 60%,
+                rgba(255, 200, 144, 0));
+        }
+
+        #opening-label .ol-line--final::after { display: none; }
+
+        #opening-label .ol-line--final .ol-ch {
             text-shadow:
-                0 0 4px rgba(10, 5, 3, .96),
-                0 0 12px rgba(10, 5, 3, .82),
-                0 0 22px rgba(255, 170, 96, .62),
-                0 0 44px rgba(255, 140, 70, .34);
-            opacity: 1;
+                0 0 4px rgba(10, 5, 3, .95),
+                0 0 12px rgba(10, 5, 3, .78),
+                0 0 26px rgba(255, 186, 112, .66),
+                0 0 62px rgba(255, 148, 76, .36);
         }
 
-        /* 阶梯的一级。
-           横向的错位由 JS 写成 padding-left: calc(50% - 104px + i*15px)
-           （见 opening.js 的 addRow）：用 50% 而不是定死像素，
-           窗口多宽它都自己算，不用在 resize 里重排；
-           用 padding 而不是 transform，是因为 transform 会让每个字
-           各自进合成层，落字那一帧的位移和这里的错位会打架。
-           行高 1.6 就是"级"与"级"之间那道缝 —— 太密就糊成一段话，
-           但也不能松：11 级加上落款要挤在光核和城市剪影之间那条空当里。
-           采样点是数据里长出来的（现在 11 级，明年还会更多），
-           所以整列的高度是活的：它有多高，这三年就有多长。 */
-        #opening-label .ol-line {
-            white-space: nowrap;
-            line-height: 1.6;
-            opacity: 1;
-            transition: opacity .55s ease;
-        }
-
-        /* 走过的台阶退到半亮。
-           还是读得清 —— 这一列是"走过的路"，擦掉就没有阶梯了；
-           但主角只能是刚落下来的那一级，否则十几行一起亮，
-           眼睛不知道先看谁。0.42 试过，压到那颗光核附近就快看不见了。 */
-        #opening-label .ol-line--dim {
-            opacity: .58;
-        }
-
-        /* 一个字一个格。宽度先占住，所以字是一个一个亮起来，
-           而不是一个一个把后面的字往右挤 —— 后者读起来像打字机的排版事故。
-
-           落位不用 CSS animation，由 js/opening.js 每帧写 opacity /
-           transform（见 tickChars）。理由是这套"每个字一条 animation +
-           各自 delay"的写法，在字多的时候会有一部分字停在中间态：
-           计算样式说已经到 100%，画面上却还是暗的。
-           JS 驱动慢不了多少（几十个字，落完就停手），
-           但每一帧的状态都是确定的。 */
+        /* 一个字一个格。宽度先占住，字才是一个一个亮起来，
+           而不是一个一个把后面的字往右挤 —— 后者读起来像排版事故。
+           落位由 JS 逐帧写 opacity / transform（见 tickChars）。 */
         #opening-label .ol-ch {
             display: inline-block;
             opacity: 0;
         }
 
-        /* 最后一格是「落款」，不是「刻度」。
-           前面几行是 mono 的数字（2026-11 · 138.7 万人），读的是量；
-           这一句是整段演出的收束，换回宋体、字距收紧、字号放大，
-           读的是重量。它不参与阶梯的错位，居中压在这列数字下面。 */
-        #opening-label .ol-line--final {
-            margin-top: 14px;
-            text-align: center;
-            font-family: var(--serif);
-            font-size: 18px;
-            letter-spacing: .1em;
-            line-height: 1.4;
-            color: rgba(255, 244, 218, .97);
-            text-shadow:
-                0 0 4px rgba(10, 5, 3, .95),
-                0 0 12px rgba(10, 5, 3, .78),
-                0 0 26px rgba(255, 186, 112, .70),
-                0 0 60px rgba(255, 148, 76, .40);
+        /* 一级浮上来：从下方 18px、五像素虚焦里长出来。
+           敢用 blur 是因为字号上去了 —— 上一版 11px 配 5px 散焦，
+           落下之前等于看不见，读起来是"缺字"。 */
+        @keyframes olRowIn {
+            from { opacity: 0; transform: translateY(18px); filter: blur(5px); }
+            to   { opacity: 1; transform: none; filter: blur(0); }
+        }
+
+        @keyframes olTread {
+            from { transform: scaleX(0); }
+            to   { transform: scaleX(1); }
+        }
+
+        /* 呼吸只动暖光那两层，暗晕不动 —— 暗晕一动，字就忽隐忽现。 */
+        @keyframes olNumGlow {
+            from {
+                text-shadow:
+                    0 0 3px rgba(10, 5, 3, .96),
+                    0 0 11px rgba(10, 5, 3, .74),
+                    0 0 18px rgba(255, 178, 104, .36),
+                    0 0 40px rgba(255, 150, 80, .16);
+            }
+            to {
+                text-shadow:
+                    0 0 3px rgba(10, 5, 3, .96),
+                    0 0 11px rgba(10, 5, 3, .74),
+                    0 0 30px rgba(255, 196, 124, .72),
+                    0 0 82px rgba(255, 164, 92, .42);
+            }
         }
 
         /* 跳过提示。
@@ -345,9 +524,6 @@
             font-size: 11px;
             line-height: 1;
             letter-spacing: .18em;
-            /* 这一句落在城市剪影上 —— 那块背景是一排亮点，纯文字会被吃掉。
-               给一层极淡的底把它托起来，形状跟站内其它按钮一致（胶囊）。
-               颜色比按钮暗一档：它是提示，不是控件。 */
             padding: 10px 15px;
             border-radius: 999px;
             background: rgba(18, 9, 5, .62);
@@ -361,26 +537,15 @@
 
         #opening-hint.hint--in { opacity: 1; }
 
-        /* 字怎么落位，见 js/opening.js 的 tickChars：
-           从下方 12px 浮上来、60% 处全亮。参数在那边，样式这边只管排布。 */
-
-        /* 注意：字距始终不动。要"慢慢铺开"的感觉，用透明度 + 位移就够。 */
-
-        /* 十几级压在画面下三分之一。矮屏上整列会顶到光核附近，
-           所以台阶之间的缝收一点、整列再往下挪一点。 */
+        /* 矮屏：整列会顶到光核，把字压小一档（字号由 JS 按高度算，
+           这里只管提示和边距）。 */
         @media (max-height: 620px) {
-            #opening-label { bottom: 19vh; font-size: 10px; }
-            #opening-label .ol-line { line-height: 1.5; }
-            #opening-label .ol-line--final { font-size: 15px; margin-top: 10px; }
             #opening-hint { right: 16px; bottom: 18px; }
         }
 
+        /* 手机：整列要往左收一点，右边才有地方给横杠伸出去。 */
         @media (max-width: 640px) {
-            /* 手机上十一级得压一压：字号、行距、到屏幕底的距离都要让出地方，
-               否则落款会压到城市剪影上。 */
-            #opening-label { bottom: 24vh; font-size: 10px; }
-            #opening-label .ol-line { line-height: 1.55; }
-            #opening-label .ol-line--final { font-size: 15px; margin-top: 10px; }
+            #opening-label { left: 6vw; }
         }
 
         /* ---------- 画布 ---------- */

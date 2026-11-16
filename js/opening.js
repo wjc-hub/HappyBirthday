@@ -40,18 +40,22 @@
   像人群一起吸一口气。收拢完成后光核再跳两下，然后才熄灭 ——
   它得是活的，交棒那一下才像"睁眼"。
 
-  那些数字也不是整行淡入的：一个字一个 <span>，各自从下方落位
-  （见 addRow）。整行淡入读起来是"字幕被切上来"，逐字落位才像
-  "有人在黑暗里把这句念出来"。
+  画面上那列数字是这三十秒的刻度（见 文案 一节）：
 
-  而且一行落完不擦、新的一行接在下面 —— 十几行叠成一列**阶梯**：
-  越往后越靠右。观众不用记住刚才写了什么，一抬眼就看见 1000 人、
-  14 万人、40 万人、100 万人、138 万人同时挂在那儿，落差是被
-  **堆**出来的，不是被念出来的。换句（擦掉旧行再写新的）读起来
-  是"一句台词被顶替"，而这三年本来就不是一句台词，是一条路
-  （见 addRow / layoutStairs）。
+    2024-04  ─────────────── 1,000 人
+    2025-01  ────────────────── 14 万人
+    ...                                   ← 一级一级往下、往右、变大
+    2026-11  ────────────────────────── 138.7 万人
+               一百三十八万人，今晚都在
 
-  走过的台阶会退到六成亮，但不是消失：整列擦掉的话，就没有阶梯了。
+  它是**楼梯**，不是表格：每一级有一块从导轨伸出来的踏板、一段连着
+  下一级的竖面、一个逐级放大的数字。字号跟着人数长（13px → 33px），
+  所以"涨"这件事在读到数字之前就被看见了。
+
+  每一行落下来的时候，数字会从上一级的人数**滚**到这一级（tickRows）——
+  这是这一段最值钱的效果：它让"涨"变成一件正在发生的事。
+  导轨上那根会往下滑的针标着"此刻"。走过的级只退字、不退结构：
+  楼梯是一个整体，结构一淡就散了。
 
   跳过
   ----
@@ -84,10 +88,12 @@ var Opening = (function () {
       progress = 0,
       skipTimer = null,
       hintTimer = null,
-      rows = [],           // 已经挂上去的每一行（阶梯的每一级）
+      rows = [],           // 已经挂上去的每一级（+ 落款）
+      marker = null,       // 导轨上那个亮点（"此刻"站在哪一级）
       shownMark = -1,      // 已经写到第几个采样点
       finalShown = false,  // 落款写过没有
-      charLive = false,    // 还有字在落
+      charLive = false,    // 落款还有字在落
+      rowsLive = false,    // 还有数字在滚
       lastTap = 0,         // 上一次"想跳过"的点击时刻
       skipping = false,
       skipAt = 0,
@@ -214,15 +220,6 @@ var Opening = (function () {
   }
 
   // ---------- 文案 ----------
-
-  // 别写"14万粉丝"这种报表话。这里要的是"那时有多少人"。
-  //
-  // 中文里没有"1.4 百万人"这种说法 —— 一律用"万"。
-  // 14 万 / 100 万 / 138.7 万，都比换算到"百万"顺。
-  function human(n) {
-    if (n >= 10000) return (Math.round(n / 1000) / 10) + ' 万人';
-    return n + ' 人';
-  }
 
   // 最后那句里的"一百三十八万"不能写死。
   // 明年粉丝涨了、后年又涨了，这句话必须自己跟着变 ——
@@ -642,6 +639,7 @@ var Opening = (function () {
     ctx.globalCompositeOperation = 'source-over';
 
     updateLabel(t, grow);
+    tickRows(performance.now());
     tickChars();
     syncCity(grow);
   }
@@ -670,125 +668,361 @@ var Opening = (function () {
   }
 
   // ---------- 文案 ----------
+  //
+  // 这一节是"这三年涨了多少人"被读出来的地方。
+  //
+  // 上一版是一列 11px 等宽小字，结构对（同时看见所有），但观感像一份
+  // 调试日志：字小、没有层级、悬在星空中间跟画面没有任何关系。
+  //
+  // 这一版把「涨」这件事拆进排版里：
+  //
+  //   · 字号跟着人数一起长。第一级约 17px，最后一级约 27px —— 越往下越大，
+  //     台阶的"高度"本身在变，一抬眼就知道后面这几步比前面重。
+  //   · 日期小、人数大。日期是刻度（.7em，暗），人数是主角（1em，亮）。
+  //   · 每一级底下压一条细线，从左侧导轨一直伸到文字右端。线越往下越长，
+  //     十一根横线叠起来就是台阶的剪影 —— 整列因此是"一个东西"，
+  //     不是十一行没有依托的字。
+  //   · 左侧一根竖直导轨 + 一个跟着往下走的亮点：那是"此刻"站在哪一级。
+  //
+  // 效果（都是"到了"这一下的分量，不是为了动而动）：
+  //
+  //   · 落级：整行从下方浮起、由虚到实，同时那个数字从上一级的人数**滚**
+  //     到这一级（tickRows 逐帧改写）。滚数字是这一段最值钱的效果 ——
+  //     它让"涨"变成一件正在发生的事，而不是一条已经写好的记录。
+  //   · 落级那一帧，全屏的光也一起亮一下（见 syncPulse）、光环荡开一圈。
+  //   · 最新一级的暖光一直在慢慢呼吸，旧级退到五成亮、呼吸停掉 ——
+  //     画面里只有一个地方是"活的"。
+  //   · 落款：宋体、逐字落下（tickChars），前面压一条更亮的分隔线。
 
-  // 阶梯的一级。
-  //
-  // 为什么是"一行一行往上摞"，不是"一句一句换"：
-  // 换句的时候画面上永远只有一行，观众得靠记忆去比 1000 和 138 万人；
-  // 摞成阶梯以后，走过的每一级都还在，落差是自己撞进眼睛里的 ——
-  // 而且它跟画面上那些一颗一颗升起来的星光说的是同一件事：
-  // 这几年，每一年都比上一年多来了很多人。
-  //
-  // 排布（见 index.html 的 .ol-line）：每一级比上一级往右挪一步，
-  // 整列的高度在第一级落下时就占满，后面每加一级只往下填一格 ——
-  // 已经落好的字一动不动，新的那一级落在上一级的下面那一格。
-  //
-  // 坑：空格不能用普通空格。span 里的空格在 inline-block 下会被折叠，
-  // 一行「2026-11 · 138.6 万人」会挤成「2026-11·138.6万人」。
-  // 换行同理 —— 用 nbsp 保住。
-  //
-  // 落位的时间戳记在每一行自己身上，逐帧由 tickChars 推。不用 CSS animation：
-  // 「每个字一条 animation + 各自 delay」在字多的时候会有几个字停在
-  // 中间态（计算样式已经是终值，画面上还是暗的），而且几十条动画
-  // 各自占一个合成层。JS 写 style 最多几十个字，落完就停。
-  var STAIR = 13;          // 一级往右挪多少像素（宽屏）
+  // 行高倍数：台阶之间的缝。必须和 index.html 里 .ol-line 的 line-height
+  // 一模一样 —— 列高是按它乘出来的，差 0.08 就是二十几像素的错位。
+  var COL_LH = 1.5,
+      COL_GROW = 1.55,     // 最后一级比第一级大多少（1.55 = 大两倍半）
+      COL_INDENT = 18;     // 文字离导轨多远（第一级）
 
-  // 窄屏上步子要收一点：11 级的错位加上一行字，在 390 宽的手机屏上
-  // 就是一条从左边缘斜到右边缘的线，看着像排版溢出。
+  // 一级往右挪多少像素（宽屏）。窄屏要收：11 级的错位加上一行字，
+  // 在 390 宽的手机上就是一条从左边缘斜到右边缘的线，像排版溢出。
   function stairStep() {
-    return Math.max(7, Math.min(STAIR, W * 0.030));
+    return Math.max(7, Math.min(17, W * 0.012));
   }
 
-  // 整列靠哪条线起排。
+  // 整列的高度是字号的固定倍数（正比）：行高写死，字号按 i 线性升，
+  // 落款是 2.3 倍字号的两行。所以"最多能多大"可以直接反算，不用试。
   //
-  // 错位是一路往右走的，走到最后一级已经偏出去半列了，所以整列先把
-  // 总错位的一半让出来 —— 视觉重心才落在屏幕中线上。
-  // 采样点是数据里长出来的（现在 11 个，明年更多），不写死。
-  // 104 是"一行里程碑大约有多宽的一半"，再把结果按屏宽的 30% 兜一次底。
-  function stairBase() {
-    var half = 104 + (series().length - 1) * stairStep() / 2;
-
-    return Math.min(half, W * 0.30);
+  // 这个倍数 K 必须和 columnHeight 算的是同一件事，改那边记得改这里。
+  function heightFactor(n) {
+    return (n + COL_GROW * (n - 1) / 2) * COL_LH + 2.3 * (1.05 + COL_LH);
   }
 
-  // 重排整列。只在加了一级、或者窗口变宽变窄时跑 —— 十几行，很轻。
+  // 第一级的字号。
+  //
+  // 两个上限，取小的：
+  //   · 屏幕高度：这一列是竖的，限制它的是高度不是宽度（H*0.0175）；
+  //   · 可用空当：0.215H~0.790H 之间那段（避开光核、避开城市剪影），
+  //     按高度反算出来的上限 —— 有它，大屏才不会被白留一片。
+  // 最后一级是它的 2.55 倍（COL_GROW）：900 高的屏幕上 15.6 → 40px，
+  // 1080 上 18.7 → 48px。差得越明显，"最后一步比第一步重得多"越成立。
+  function baseFont() {
+    var n = series().length,
+        band = H * (0.765 - 0.215) * 0.955,
+        fit = band / heightFactor(n),
+        want = Math.min(H * 0.0175, W * 0.042);
+
+    return Math.max(11, Math.min(fit, want, 22));
+  }
+
+  function fontAt(i, n) {
+    var k = n > 1 ? i / (n - 1) : 1;
+    return baseFont() * (1 + COL_GROW * k);
+  }
+
+  // 落款是一整句话，宽度是死的 —— 窄屏上它比数字更容易被裁掉。
+  // 所以除了字号，还要按"这句话从这里开始写、写到哪里"再兜一次底。
+  function finalFont(n) {
+    var f = baseFont() * 2.30,
+        start = COL_INDENT + finalIndent(n) + W * 0.07,
+        room = W - start - 18,
+        per = (finalLine().length || 12) * 1.075;   // 字宽 + 字距
+
+    return Math.min(f, room / per);
+  }
+
+  // 落款从哪儿起排。宽屏挂在最后一级的数字下面（像"这一列写完了"），
+  // 窄屏退回导轨旁边 —— 手机上跟着缩进的话，一句话只剩二百来像素，
+  // 字得压到 20px 才放得下，比最后一级的数字还小，收不住。
+  function finalIndent(n) {
+    return W < 640 ? 0 : (n - 1) * stairStep();
+  }
+
+  function rowIndent(i, n) {
+    return COL_INDENT + Math.min(i, n - 1) * stairStep();
+  }
+
+  // 整列的高度。**预**算，不是量出来的 —— 字号是 i 的函数，行高写死 1.5，
+  // 所以还没落第一级就能知道这十一级一共多高。
+  //
+  // 知道它有什么用：整列可以一次摆到位（顶部锚定），后面每加一级只是往下
+  // 填一格。不预算的话，只能靠"底部锚定 + 撑满 min-height"，那样一旦哪年
+  // 采样点变多、或者字号在断点里变了，整列就会自己往上爬（上一版的坑）。
+  function columnHeight(n) {
+    var h = 0, i;
+
+    for (i = 0; i < n; i++) h += fontAt(i, n) * COL_LH;
+
+    // 落款：一段上边距 + 一行 1.4 的行高
+    return h + finalFont(n) * (1.05 + 1.4);
+  }
+
+  // 整列摆在画面的哪一段。上界避开光核，下界避开城市剪影和左下角那排按钮。
   function layoutStairs() {
-    var i, el, rowH;
+    var n = series().length,
+        total = columnHeight(n),
+        bandTop = H * 0.215,
+        bandBot = H * 0.765,   // 城市剪影最高的楼大约在 0.78，落款要站在它上面
+        top = bandTop + Math.max(0, (bandBot - bandTop - total) / 2),
+        i, rec;
+
+    if (label) label.style.top = Math.round(top) + 'px';
 
     for (i = 0; i < rows.length; i++) {
-      el = rows[i].el;
+      rec = rows[i];
 
-      if (el.classList.contains('ol-line--final')) continue;
+      rec.el.style.setProperty('--fs',
+        (rec.isFinal ? finalFont(n) : fontAt(rec.idx, n)).toFixed(1) + 'px');
+      rec.el.style.paddingLeft = COL_INDENT + 'px';
 
-      el.style.paddingLeft = 'calc(50% - ' + stairBase() + 'px + ' +
-        (i * stairStep()) + 'px)';
+      // 日期一律钉在导轨旁边，**只有数字列**一级一级往右挪。
+      //
+      // 这一条是整列好不好看的关键。之前是整行一起挪：日期也跟着往右走，
+      // 左边那根线就成了斜的，一列字没有任何一条竖线可以靠 —— 看着像
+      // 一排被挤歪的表格。日期钉住之后，左边是一根笔直的刻度尺，
+      // 右边是一串逐级下沉、逐级变大的数字，阶梯的剪影才立得住。
+      if (!rec.isFinal) {
+        rec.num.style.marginLeft = (rec.idx * stairStep()) + 'px';
+
+        // 踏板（那道横杠）只铺到数字的起点，不铺到行尾。
+        //
+        // 铺满整行的时候，十一条等长的横线看着就是一张表格 —— 而且是
+        // 一张没有表头的表格。铺到数字脚下之后：左边一根导轨、中间一道
+        // 踏板、右端站着那一级的人数，横线长度 = 这一级踩出去多远，
+        // 十一级叠起来才是台阶的侧面。
+        rec.el.style.setProperty('--beam',
+          Math.round(rec.num.offsetLeft) + 'px');
+
+        // 落款挂在最后一级数字的起点下面：读起来是"这一列写完了，
+        // 下面还有一句话"，不是又一级台阶。
+      } else {
+        rec.el.style.paddingLeft = (COL_INDENT + finalIndent(n)) + 'px';
+      }
     }
 
-    // 整列的高度一次占满。
-    //
-    // 不占的话：每加一级，前面所有行都被顶上去一行。2025 年那一段采样点
-    // 密得两秒一级，整列就一直在往上爬 —— 正在读的那一行会自己跑掉。
-    // 占住之后每一级只往下填一格，已经落好的字一动不动，
-    // 底下的空白是"还没走到的那几级"。
-    //
-    // 44 是落款那一格要的高度（14 外边距 + 18px 宋体的行高），
-    // 到了最后一句才真的用上；估小一点也无所谓，最多整列上移两三个像素。
-    rowH = rows.length ? rows[0].el.getBoundingClientRect().height : 0;
+    layoutRisers();
+    placeMarker();
+  }
 
-    if (rowH) {
-      label.style.minHeight = (series().length * rowH + 44) + 'px';
+  // 每一级的踏板高度（离行底多少）—— 竖边要从这个高度开始量。
+  function beamY(rec, n) {
+    return rec.el.offsetTop + rec.el.offsetHeight -
+      (rec.isFinal ? finalFont(n) : fontAt(rec.idx, n)) * 0.22;
+  }
+
+  // 竖边：从这一级的踏板末端，垂到下一级的踏板。
+  //
+  // 长度要现量，不能写死 —— 每一级的字号不同，行高也就不同。
+  // 没有下一级的时候（最后一级）先收起来，等下一级落下来再长下去：
+  // 楼梯是一级一级被"砌"出来的，那条竖边是随新台阶一起长出来的。
+  function layoutRisers() {
+    var n = series().length,
+        i, rec, next, len;
+
+    for (i = 0; i < rows.length; i++) {
+      rec = rows[i];
+      if (rec.isFinal || !rec.riser) continue;
+
+      next = rows[i + 1];
+      len = next ? beamY(next, n) - beamY(rec, n) : 0;
+
+      rec.riser.style.left = Math.round(rec.num.offsetLeft) + 'px';
+
+      if (len > 0) {
+        rec.riser.style.height = Math.round(len) + 'px';
+        rec.riser.classList.add('ol-riser--on');
+      } else {
+        rec.riser.style.height = '0px';
+        rec.riser.classList.remove('ol-riser--on');
+      }
     }
   }
 
-  function addRow(text, isFinal) {
-    var row = document.createElement('div'),
+  // 导轨上那个亮点。它不是装饰：它标的是"此刻"站在第几级。
+  //
+  // 每落一级，它从上一格滑到下一格（CSS transition 管 top）。滑这一下
+  // 比新行浮起来更能说明"时间在往前走" —— 静止的亮点只是装饰，
+  // 会移动的亮点才是一个指针。
+  function placeMarker() {
+    if (!marker) return;
+
+    var rec = rows[rows.length - 1];
+
+    if (!rec || rec.isFinal) { marker.style.opacity = '0'; return; }
+
+    marker.style.top = Math.round(rec.el.offsetTop + rec.el.offsetHeight / 2) + 'px';
+    marker.style.opacity = '1';
+  }
+
+  function ensureMarker() {
+    if (!label) return;
+
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.className = 'ol-marker';
+    }
+
+    if (marker.parentNode !== label) label.appendChild(marker);
+  }
+
+  // 一级 + 落款，共用一个入口。idx 传 n 就是落款。
+  function addRow(idx, isFinal) {
+    var n = series().length,
+        s = series(),
+        row = document.createElement('div'),
+        body = document.createElement('div'),
+        dateEl, numEl, unitEl, riserEl, seed, rec,
         i, ch, sp;
 
     row.className = 'ol-line' + (isFinal ? ' ol-line--final' : '');
+    body.className = 'ol-body';
 
-    for (i = 0; i < text.length; i++) {
-      ch = text.charAt(i);
+    row.style.setProperty('--fs',
+      (isFinal ? finalFont(n) : fontAt(idx, n)).toFixed(1) + 'px');
+    row.style.paddingLeft = COL_INDENT + 'px';   // 具体错位由 layoutStairs 写
 
-      sp = document.createElement('span');
-      sp.className = 'ol-ch';
-      sp.textContent = (ch === ' ' || ch === '\u3000') ? '\u00a0' : ch;
-      row.appendChild(sp);
+    if (isFinal) {
+      // 落款是"一句话"，不是一个数 —— 所以它回到逐字落位。
+      // 数字行不做逐字：数字那边有滚动，两个动效叠在一起会互相打架。
+      var text = finalLine();
+
+      for (i = 0; i < text.length; i++) {
+        ch = text.charAt(i);
+
+        sp = document.createElement('span');
+        sp.className = 'ol-ch';
+        sp.textContent = (ch === ' ' || ch === '\u3000') ? '\u00a0' : ch;
+        body.appendChild(sp);
+      }
+
+      row.appendChild(body);
+      label.appendChild(row);
+
+      rows.push({
+        el: row,
+        idx: n,
+        isFinal: true,
+        chars: body.children,
+        start: performance.now(),
+        stagger: 96,
+        dur: 1050,
+        live: true,
+        counting: false
+      });
+
+      charLive = true;
+      layoutStairs();
+      return;
     }
+
+    dateEl = document.createElement('span');
+    dateEl.className = 'ol-date';
+    dateEl.textContent = markDate(idx);
+    // 日期列定宽（按最长的一条算）。不定宽的话，两条完整日期会把
+    // 自己那一行的数字往右推三个字，整列看着像没对齐。
+    dateEl.style.width = dateWidth();
+
+    numEl = document.createElement('span');
+    numEl.className = 'ol-num';
+
+    unitEl = document.createElement('span');
+    unitEl.className = 'ol-unit';
+
+    // 起手先写上一级的人数，再往下滚 —— 从 0 开始滚就见不到"涨"，
+    // 只见到"数"；从 14 万滚到 23 万，那九万才是这一级的意思。
+    seed = numSplit(idx > 0 ? s[idx - 1].f : 0);
+    numEl.textContent = seed.n;
+    unitEl.textContent = seed.u;
+
+    body.appendChild(dateEl);
+    body.appendChild(numEl);
+    body.appendChild(unitEl);
+    row.appendChild(body);
+
+    // 踏步的"竖面"：从这一级的踏板末端往下，连到下一级的踏板。
+    // 少了它，十一条横线只是十一条横线；有了它，侧面连起来才是楼梯。
+    riserEl = document.createElement('i');
+    riserEl.className = 'ol-riser';
+    row.appendChild(riserEl);
 
     label.appendChild(row);
 
-    rows.push({
+    rec = {
       el: row,
-      chars: row.children,
+      idx: idx,
+      num: numEl,
+      unit: unitEl,
+      riser: riserEl,
+      from: idx > 0 ? s[idx - 1].f : 0,
+      to: s[idx].f,
       start: performance.now(),
-      // 落款那十一个字比数字行重，字与字之间留得久一点：
-      // 62ms 是"念数字"的节奏，118ms 是"说一句话"的节奏。
-      // 单字时长也一起放慢（0.95s → 1.15s），否则字距一拉开、
-      // 每个字自己却落得飞快，读起来像在催。
-      stagger: isFinal ? 118 : 62,
-      dur: isFinal ? 1150 : 950,
-      live: true
-    });
+      dur: 880,
+      counting: true
+    };
 
-    charLive = true;
+    rows.push(rec);
+    rowsLive = true;
 
-    // 先排再显：排布放这里而不是 CSS，是因为它得知道"一步多宽"和
-    // "一共几级"，这两个都只有 JS 那边有。
-    layoutStairs();
-
-    // 走过的台阶退到半亮：还读得清，但主角是新落下来的那一级。
-    // 不是淡出 —— 擦掉就没有阶梯了。
+    // 旧的一级退场：呼吸停掉、亮度压下去。不是擦掉 —— 擦掉就没有台阶了。
     for (i = 0; i < rows.length - 1; i++) {
+      rows[i].el.classList.remove('ol-line--now');
       rows[i].el.classList.add('ol-line--dim');
     }
+
+    row.classList.add('ol-line--now');
+
+    layoutStairs();
   }
 
-  // 一个字：从下方 12px 浮上来，60% 的地方就全亮。
-  //
-  // 不缩放 —— 缩放会让每个字在自己的格子里膨胀再缩回，
-  // 一排字同时膨胀，看起来像在呼吸，不像在落位。
-  // 也不做 blur：11px 的字配 6px 散焦，落下之前等于完全看不见，
-  // 读起来是"缺字"而不是"虚化"。
+  // 数字滚动。逐帧只是改写一个 textContent —— 整段开支等于一次文本布局，
+  // 而同时只有一到两行在滚，滚完就把 counting 放下，不再碰 DOM。
+  function tickRows(now) {
+    if (!rowsLive) return;
+
+    var live = 0, i, rec, p, e, v, sp;
+
+    for (i = 0; i < rows.length; i++) {
+      rec = rows[i];
+      if (!rec.counting) continue;
+
+      p = (now - rec.start) / rec.dur;
+
+      if (p >= 1) {
+        p = 1;
+        rec.counting = false;
+      } else {
+        live++;
+      }
+
+      e = 1 - Math.pow(1 - p, 3);              // easeOutCubic：起手快、收尾稳
+
+      v = rec.from + (rec.to - rec.from) * e;
+      sp = numSplit(v);
+
+      rec.num.textContent = sp.n;
+      rec.unit.textContent = sp.u;
+    }
+
+    rowsLive = live > 0;
+  }
+
+  // 落款逐字落位。数字行不走这里（见 tickRows 的注释）。
   function tickChars() {
     if (!charLive || !label) return;
 
@@ -798,7 +1032,7 @@ var Opening = (function () {
 
     for (r = 0; r < rows.length; r++) {
       rec = rows[r];
-      if (!rec.live) continue;
+      if (!rec.live || !rec.chars) continue;
 
       kids = rec.chars;
       n = kids.length;
@@ -817,7 +1051,7 @@ var Opening = (function () {
       }
 
       if (settled === n) {
-        // 这一行落齐了：把终态写死，从此这一行不再每帧碰 DOM。
+        // 落齐了：把终态写死，然后停手，不再每帧碰 DOM。
         for (i = 0; i < n; i++) {
           kids[i].style.opacity = '1';
           kids[i].style.transform = 'none';
@@ -834,17 +1068,17 @@ var Opening = (function () {
   function updateLabel(t, grow) {
     if (!label) return;
 
-    // 开场那两秒半什么都不写。一颗光点在呼吸，不需要解释。
+    // 开场那两秒半什么都不写。一颗光点不需要解释。
     if (t < T_SEED) return;
 
     var n = series().length,
         // 落款在"开始收拢"时才出现，不是人数涨满就出现：
-        // 按 grow 判断的话，2026-11 那一级只挂零点几秒就被落款压住了 ——
+        // 按 grow 判断的话，最后一级只挂零点几秒就被落款压住 ——
         // 而它恰恰是"现在"。
         idx = (t >= T_LIFT + 300) ? n : reachedIdx(grow);
 
-    // 一级一级往上补。idx 一次跳两级（掉帧、从后台切回来）就两级都补上：
-    // 阶梯中间缺一格比慢一格难看，而且缺的那格永远补不回来了。
+    // 一级一级补。idx 一次跳两级（掉帧、从后台切回来）就两级都补上：
+    // 台阶中间缺一格比慢一格难看，而且缺的那格永远补不回来了。
     while (shownMark < Math.min(idx, n - 1)) {
       shownMark++;
       showMark(shownMark);
@@ -854,33 +1088,67 @@ var Opening = (function () {
   }
 
   function showMark(i) {
-    addRow(markLabel(i), false);
+    addRow(i, false);
   }
 
-  // 一级上写什么。
+  // 一级上写什么日期。
   //
   // 平时只写「2025-12」—— 这一列读的是趋势，月份够用。
   // 但同一个月的两条（2025-12-11 的 60 万、2025-12-21 的 64 万）不能都写成
   // 「2025-12」：一列里出现两个一模一样的日期，看起来像数据出了错。
   // 撞月就退到完整日期 —— 多写五个字，换来的是"那十天涨了四万"这个事实。
-  function markLabel(i) {
+  function markDate(i) {
     var s = series(),
         ym = s[i].date.slice(0, 7),
-        dup = false,
         k;
 
     for (k = 0; k < s.length; k++) {
-      if (k !== i && s[k].date.slice(0, 7) === ym) { dup = true; break; }
+      if (k !== i && s[k].date.slice(0, 7) === ym) return s[i].date.slice(0, 10);
     }
 
-    return (dup ? s[i].date.slice(0, 10) : ym) + ' · ' + human(s[i].f);
+    return ym;
+  }
+
+  // 日期列要留多宽（字符数）。按最长的一条算，整个列表只算一次。
+  var dateCol = 0;
+
+  function dateColWidth() {
+    var n = series().length, i;
+
+    if (dateCol) return dateCol;
+
+    for (i = 0; i < n; i++) {
+      dateCol = Math.max(dateCol, markDate(i).length);
+    }
+
+    return dateCol;
+  }
+
+  // 日期那一格宽多少。日期字号是固定的（见 index.html 的 .ol-date），
+  // 所以 ch 是常量，可以算出一个固定宽度 —— 一行一行加起来才是一条直线。
+  // 末尾那个字距也要算进去，否则最后一格会挤着数字。
+  function dateWidth() {
+    var n = dateColWidth();
+
+    return 'calc(' + n + 'ch + ' + (n * 0.13).toFixed(2) + 'em)';
+  }
+
+  // 人数拆成「数」和「单位」两段：数大、单位小。
+  // 一起排的话 138.7 和 万人 一样重，读起来像一串字母。
+  function comma(x) {
+    return String(x).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function numSplit(f) {
+    if (f >= 10000) return { n: String(Math.round(f / 1000) / 10), u: '万人' };
+    return { n: comma(Math.round(f)), u: '人' };
   }
 
   function showFinal() {
     if (finalShown) return;
     finalShown = true;
 
-    addRow(finalLine(), true);
+    addRow(series().length, true);
   }
 
   // ---------- 生命周期 ----------
@@ -957,12 +1225,15 @@ var Opening = (function () {
     risers.length = 0;
     skipping = false;
     charLive = false;
+    rowsLive = false;
+    dateCol = 0;
     rows.length = 0;
     shownMark = -1;
     finalShown = false;
     if (label) {
       label.textContent = '';
-      label.style.minHeight = '';
+      label.style.top = '';
+      ensureMarker();
     }
     skipAt = 0;
     lastTap = 0;
